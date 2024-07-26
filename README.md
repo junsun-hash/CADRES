@@ -19,18 +19,24 @@ Before you begin, ensure you have the following installed on your system:
 
 Clone this repository to your local machine using Git:
 
-```bash
+```
 git clone https://github.com/yourusername/cardes.git
-cd cardes
-Running the Scripts
-Step 1: Run cardes_boost.sh
-The first step is to run the cardes_boost.sh script. This script performs the initial setup and processing for the Cardes project.
 
+cd cardes
+```
+Running the Scripts
+Step 1: 
+
+Run cardes_boost.sh
+The first step is to run the cardes_boost.sh script. This script performs the initial setup and processing for the Cardes project.
+```
 ./cardes_boost.sh
+```
 Step 2: Run cardes_DVR.sh
 After the cardes_boost.sh script has completed successfully, run the cardes_DVR.sh script. This script continues the processing based on the output of the first script.
-
+```
 ./cardes_DVR.sh
+```
 Dependencies
 If there are any dependencies required by these scripts, list them here with their installation instructions.
 
