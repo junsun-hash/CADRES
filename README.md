@@ -1,4 +1,4 @@
-# CADRES
+# Calibrated Differential RNA Editing Scanner (CADRES)
 An Analytical Pipeline for Precise Identification of Differential RNA Editing Events Across Varied Biological Conditions
 # Cardes Project
 
