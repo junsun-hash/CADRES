@@ -1,0 +1,36 @@
+{
+    "general": {
+      "prefix": "293T_V6",
+      "threads": 32,
+      "script_dir": ".",
+      "log_file": "cadres_pipeline.log"
+    },
+    "paths": {
+      "genome": "/public3/home/scg8972/genome/plsmid/Homo_sapiens.GRCh38.dna.primary_assembly_plsmid.fa",
+      "known_snv_boost": "/public3/home/scg8972/genome/dbsnp150.vcf",
+      "known_snv_anno": "/public3/home/scg8972/genome/dbsnp150_reorder.vcf",
+      "genome_ad": "/public3/home/scg8972/genome/germline_resource/af-only-gnomad_chr_3.hg38.vcf",
+      "known_editing": "/public3/home/scg8972/genome/DVR_ref/REDIportal_AtoI.txt",
+      "gene_anno": "/public3/home/scg8972/genome/DVR_ref/refGene.txt",
+      "input_rna_bam_dir": "/public3/home/scg8972/0_czhang/DVR_Analysis/2_BAM_RNA-seq/293T/",
+      "input_dna_bam": "/public3/home/scg8972/0_czhang/DVR_Analysis/1_BAM_WGS/293T/C6-WGSA_plasmid_sorted.bam"
+    },
+    "work_dirs": {
+      "boost_working_dir": "/public3/home/scg8972/0_czhang/DVR_Analysis/2.5_boosted_scan/293T_V6/",
+      "dna_bqsr_dir": "/public3/home/scg8972/0_czhang/DVR_Analysis/4_BQSR_DNA/293T_COM/",
+      "rna_bqsr_dir": "/public3/home/scg8972/0_czhang/DVR_Analysis/3_BQSR_RNA/293T_V6/",
+      "rv_working_dir": "/public3/home/scg8972/0_czhang/DVR_Analysis/5_mutect2/293T_V6/"
+    },
+    "samples": {
+      "dna_name": "C6_WGS",
+      "all_rna_samples": [
+        "C6-DMSO-1", "C6-DMSO-2", "C6-DMSO-3",
+        "C6-DOX-1", "C6-DOX-2", "C6-DOX-3"
+      ],
+      "group1_names": ["C6-DMSO-1", "C6-DMSO-2", "C6-DMSO-3"],
+      "group2_names": ["C6-DOX-1", "C6-DOX-2", "C6-DOX-3"],
+      "group1_label": "DMSO",
+      "group2_label": "DOX"
+    }
+  }
+  

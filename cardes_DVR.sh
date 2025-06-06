@@ -116,13 +116,13 @@ gatk SelectVariants \
     --select-type-to-include SNP \
     -O $prefix.SNV.vcf
 
-bash ${script_dir}revised_convertVCF.sh $prefix.SNV.vcf ${prefix}_SNPIR.SNV.vcf
+python ${script_dir}revised_convertVCF.py $prefix.SNV.vcf ${prefix}_SNPIR.SNV.vcf
 
 #export PERL5LIB=/public3/home/scg8972/0_czhang/Soft/SNPiR
-perl ${script_dir}filter_homopolymer_nucleotides.pl \
-    -infile ${prefix}_SNPIR.SNV.vcf \
-    -outfile $prefix.homo.vcf \
-    -refgenome $genome
+python ${script_dir}filter_homopolymer_nucleotides.py \
+    --infile ${prefix}_SNPIR.SNV.vcf \
+    --outfile $prefix.homo.vcf \
+    --refgenome $genome
 #制作用于pblat的all.bam参考文件
 
 samtools merge -f ${prefix}all.bam ${RNA_bam[@]}
@@ -131,13 +131,13 @@ samtools index ${prefix}all_sorted.bam
 
 #export PERL5LIB=/public3/home/scg8972/0_czhang/Soft/SNPiR
 
-perl ${script_dir}pblat_candidates_ln.pl \
-    -infile $prefix.homo.vcf \
-    -outfile $prefix.pblat.vcf \
-    -bamfile ${prefix}all_sorted.bam \
-    -refgenome $genome \
-    -minbasequal 5 \
-    -threads 32
+python ${script_dir}pblat_candidates_filter.py \
+    --infile $prefix.homo.vcf \
+    --outfile $prefix.pblat.vcf \
+    --bamfile ${prefix}all_sorted.bam \
+    --refgenome $genome \
+    --minbasequal 5 \
+    --threads 32
 rm ${prefix}all_sorted.bam
 rm ${prefix}all.bam
 awk '{OFS="\t";$2=$2-1"\t"$2;print $0}' $prefix.pblat.vcf > $prefix.knownedit.vcf

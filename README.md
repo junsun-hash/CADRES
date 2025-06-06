@@ -1,45 +1,118 @@
-# Calibrated Differential RNA Editing Scanner (CADRES)
-An Analytical Pipeline for Precise Identification of Differential RNA Editing Events Across Varied Biological Conditions
-# Cardes Project
+# CADRES: RNA Editing Site Discovery and Differential Analysis Pipeline
 
-## Overview
+## 1. Introduction
 
-This repository contains scripts for running two main components of the Cardes project: `cardes_boost.sh` and `cardes_DVR.sh`. These scripts are designed to perform specific tasks in the Cardes workflow.
+The Calibrated Differential RNA Editing Scanner (CADRES) is a comprehensive bioinformatics pipeline designed to precisely identify differential RNA editing sites from both RNA-Seq and whole-genome sequencing (WGS) data. Detecting these modifications, known as Differential Variants on RNA (DVRs), is challenging due to interference from genetic variants (SNVs) and sequencing errors. While millions of Adenosine-to-Inosine (A>I) editing sites have been found, there is a significant gap in identifying Cytidine-to-Uridine (C>U) RNA editing sites. This is largely because the enzymes responsible, cytidine deaminases like APOBEC3B (A3B), can edit both DNA and RNA, making it difficult to distinguish true RNA edits from DNA mutations.
+To address this, CADRES integrates sophisticated joint DNA/RNA variant calling with rigorous statistical analysis to accurately detect RNA editing events, with a particular focus on improving the identification of C>U sites. The pipeline's effectiveness has been validated using inducible cell models of the A3B deaminase, where it demonstrated improved accuracy and specificity over existing methods by successfully filtering out sequencing artifacts and A3B-mediated DNA mutations.
+This repository contains a refactored version of the original CADRES pipeline. The core logic is preserved, while the execution has been modernized from shell scripts into a modular, robust, and configurable Python workflow.
+Key Features
+High Precision: Employs a dual-phase analysis—RNA-DNA Difference (RDD) and RNA-RNA Difference (RRD)—to reliably distinguish RNA edits from genomic variants. This stringent approach significantly increases the precision of detected editing events.
+Boost Recalibration: Implements an innovative 'boost recalibration' strategy. This involves an initial joint DNA-RNA variant call to create a de novo library of high-confidence RNA editing sites, which is then used to refine Base Quality Score Recalibration (BQSR). This unique step minimizes the loss of sensitivity for true RNA variants, which can be mistaken for sequencing artifacts by standard BQSR methods.
+Statistical Rigor: Utilizes the robust Generalized Linear Mixed Model (GLMM) from the rMATS statistical framework to accurately quantify and test for differential editing levels between experimental conditions.
+Modular Design: The pipeline is split into two main phases (Boost and DVR), each composed of functional steps for clarity and maintainability.
+Centralized Configuration: All paths, parameters, and sample information are managed in a single config.json file, eliminating the need to edit scripts.
+Robust Execution: The workflow is managed by a master Python script (main.py) with integrated logging and error handling.
+Reproducibility: A environment.yml file is provided to create a consistent Conda environment with all necessary dependencies.
 
-## Getting Started
+### Key Features
+- **Modular Design**: The pipeline is split into two main phases (Boost and DVR), each composed of functional steps.
+- **Centralized Configuration**: All paths, parameters, and sample information are managed in a single `config.json` file, eliminating the need to edit scripts.
+- **Robust Execution**: The workflow is managed by a master Python script (`main.py`) with integrated logging and error handling.
+- **Reproducibility**: A `environment.yml` file is provided to create a consistent Conda environment with all necessary dependencies.
+
+---
+
+## 2. Installation & Setup
 
 ### Prerequisites
+- [Conda](https://docs.conda.io/en/latest/miniconda.html) package manager must be installed.
 
-Before you begin, ensure you have the following installed on your system:
+### Environment Setup
+1.  **Clone the repository or download the files** into a dedicated project directory.
 
-- Bash (usually pre-installed on Unix-based systems)
-- Any additional dependencies required by the scripts (e.g., Python, R, etc.)
+2.  **Create the Conda Environment**: Navigate to the project directory in your terminal and use the provided `environment.yml` file to create the isolated environment. This will install all required bioinformatics tools and Python libraries.
+    ```bash
+    conda env create -f environment.yml
+    ```
 
-### Installation
+3.  **Activate the Environment**: Before running any part of the pipeline, you must activate the newly created environment.
+    ```bash
+    conda activate CADRES
+    ```
 
-Clone this repository to your local machine using Git:
+---
+
+## 3. Configuration
+
+The entire pipeline is controlled by the `config.json` file. Before running the analysis, you must edit this file to match your file paths, working directories, and sample details.
+
+#### `config.json` Structure:
+
+-   **`general`**: Global settings like project prefix, number of threads, and log file name.
+-   **`paths`**: Absolute paths to all input data, including the reference genome, dbSNP files, annotation files, and raw BAM files.
+-   **`work_dirs`**: Paths to the directories where intermediate and final results for each major step will be stored. These directories will be created automatically if they do not exist.
+-   **`samples`**: Information about your samples.
+    -   `dna_name`: The sample name of the WGS/DNA data.
+    -   `all_rna_samples`: A list of all RNA sample names (base names, without `.bam`).
+    -   `group1_names` & `group2_names`: Lists of RNA sample names belonging to each experimental condition.
+    -   `group1_label` & `group2_label`: The labels for the two conditions (e.g., "Control", "Treatment").
+
+---
+
+## 4. Running the Pipeline
+
+The workflow is executed via the `main.py` script, which orchestrates all the steps.
+
+1.  **Verify Configuration**: Double-check that all paths and names in `config.json` are correct.
+
+2.  **Execute the Master Script**: Run the following command from your terminal within the project directory (ensure the `CADRES` conda environment is active).
+    ```bash
+    python main.py --config config.json
+    ```
+
+The script will then:
+-   Set up logging to both the console and the file specified in `config.json`.
+-   Run the **Boost Phase**: Calibrate DNA/RNA BAMs and run Mutect2 to create a high-confidence panel of known variant sites.
+-   Run the **DVR Phase**: Use the output from the boost phase to perform BQSR, contamination checks, variant calling, custom filtering, and finally, the differential editing analysis.
+
+The progress will be printed to the console, and detailed logs will be saved for debugging and record-keeping.
+
+---
+
+## 5. File Structure
+
+A recommended structure for your project directory:
 
 ```
-git clone https://github.com/yourusername/cardes.git
+/path/to/your_project/
+├── main.py
+├── run_boost_pipeline.py
+├── run_dvr_pipeline.py
+├── config.json
+├── environment.yml
+├── README.md
+├── scripts/                  # Directory for all helper python scripts
+├── bam_calibration_DNA.py
+├── bam_calibration_RNA_boost.py
+├── revised_convertVCF.py
+├── filter_homopolymer_nucleotides.py
+├── pblat_candidates_filter.py
+└── ... (other helper .py scripts)
+└── data/                     # (Optional) For storing input data
+└── results/                  # (Optional) For storing top-level results
+```
+*Note: The `config.json` provided assumes `script_dir` is ".", so all scripts should be in the main directory. If you place them in a `scripts/` subdirectory, update the `script_dir` path in `config.json` to `"./scripts/"`.*
 
-cd cardes
-```
-Running the Scripts
-Step 1: 
+---
 
-Run cardes_boost.sh
-The first step is to run the cardes_boost.sh script. This script performs the initial setup and processing for the Cardes project.
-```
-./cardes_boost.sh
-```
-Step 2: Run cardes_DVR.sh
-After the cardes_boost.sh script has completed successfully, run the cardes_DVR.sh script. This script continues the processing based on the output of the first script.
-```
-./cardes_DVR.sh
-```
-Dependencies
-If there are any dependencies required by these scripts, list them here with their installation instructions.
+## 6. Output
 
-Additional Information
-Ensure you have the necessary permissions to execute the scripts.
-The scripts assume the working directory is set to the root of the cloned repository.
+The most critical output file will be generated by the final step of the DVR pipeline inside your specified `rv_working_dir`:
+
+-   **`{prefix}_rMATS-DVR_Result.txt`**: A tab-delimited file containing the final annotated list of DVR sites, including their location, p-values, FDR, editing level differences, and gene annotations.
+-   **`{prefix}rMATS-DVR_Result_summary.txt`**: A summary of the different types of variants found.
+
+## 7. How to Cite
+If you use the CADRES pipeline in your research, please cite the following publication:
+
+Sun, J., Zhang, C. & Li, X. Precise detection of differential RNA editing sites across varied biological conditions using the CADRES pipeline. Sci Rep 15, 19683 (2025). https://doi.org/10.1038/s41598-025-04957-7

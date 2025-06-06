@@ -1,0 +1,32 @@
+# CADRES Pipeline Conda Environment
+# To create this environment, use the command:
+# conda env create -f environment.yml
+
+name: CADRES
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+
+dependencies:
+  # --- Core ---
+  - python=3.9
+
+  # --- Python Libraries ---
+  - pysam>=0.16         # For BAM/SAM file manipulation, updated for Python 3
+  - pyfaidx             # For fast FASTA file indexing and access
+  - numpy
+  - scipy
+  - pandas
+
+  # --- Bioinformatics Tools ---
+  # These versions are compatible with the original scripts and modern practices.
+  - gatk4=4.3.0.0
+  - samtools=1.16.1
+  - bcftools=1.16
+  - bedtools=2.31.0
+  - pblat=2.5.1
+  - picard             # Usually included with GATK4 but can be specified
+
+  # --- Other utilities ---
+  - pip
