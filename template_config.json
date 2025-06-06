@@ -1,0 +1,43 @@
+{
+    "paths": {
+      "script_dir": "./scripts/",
+      "rna_bam_dir": "/path/to/your/rna/bams/",
+      "dna_bam": "/path/to/your/dna.bam",
+      "genome": "/path/to/reference.fasta",
+      "known_snv_bqsr": "/path/to/dbsnp_for_bqsr.vcf",
+      "genome_ad": "/path/to/gnomad.vcf",
+      "gene_anno": "/path/to/refGene.txt",
+      "known_editing_sites": "/path/to/REDIportal.txt",
+      "known_snv_annotation": "/path/to/dbsnp_for_annotation.vcf",
+      "output_dir": "./cadres_analysis_output/"
+    },
+    "settings": {
+      "project_prefix": "MyCADRESProject",
+      "dna_sample_name": "MyDNASample",
+      "threads": 8,
+      "min_base_qual_pblat": 25,
+      "min_mismatch_pblat": 1,
+      "score_limit_pblat": 0.95,
+      "vcf_to_mats": {
+          "min_qual": 20,
+          "min_depth": 5,
+          "paired_reads": "T",
+          "stranded_reads": "T"
+      },
+      "mats_lrt": {
+          "multiprocessor": 4,
+          "cutoff": "0.0001" 
+      }
+    },
+    "samples": {
+      "all_rna_samples": [
+        "RNA_Sample1_Control", "RNA_Sample2_Control", 
+        "RNA_Sample3_Treatment", "RNA_Sample4_Treatment"
+      ],
+      "group1_rna_samples": ["RNA_Sample1_Control", "RNA_Sample2_Control"],
+      "group2_rna_samples": ["RNA_Sample3_Treatment", "RNA_Sample4_Treatment"],
+      "group1_label": "ControlGroup",
+      "group2_label": "TreatmentGroup"
+    }
+  }
+  
