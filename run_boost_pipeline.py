@@ -103,8 +103,7 @@ def calibrate_rna_bams(config: Dict[str, Union[str, List[str]]]) -> Optional[Lis
 
     Args:
         config (Dict): A dictionary containing configuration parameters.
-            Required keys: 'sample_list', 'boost_working_dir', 'rna_bam_dir',
-                           'script_dir', 'genome'.
+            Required keys: 'rna_bam_files', 'boost_working_dir', 'script_dir', 'genome'.
 
     Returns:
         Optional[List[str]]: A list of paths to the generated split BAM files,
@@ -114,20 +113,21 @@ def calibrate_rna_bams(config: Dict[str, Union[str, List[str]]]) -> Optional[Lis
     ensure_dir_exists(str(config['boost_working_dir']))
     split_bam_files = []
 
-    for sample in config['sample_list']:
-        output_prefix = os.path.join(str(config['boost_working_dir']), str(sample))
+    for bam_file in config['rna_bam_files']:
+        sample_name = os.path.basename(bam_file).replace('.bam', '')
+        output_prefix = os.path.join(str(config['boost_working_dir']), str(sample_name))
         split_bam_path = f"{output_prefix}_split.bam"
         
         cmd = [
             "python",
             os.path.join(str(config['script_dir']), "bam_calibration_RNA_boost.py"),
-            "--bam", os.path.join(str(config['rna_bam_dir']), f"{sample}.final.bam"),
+            "--bam", bam_file,
             "--output", output_prefix,
             "--genome", str(config['genome'])
         ]
         
         if not run_command(cmd, cwd=str(config['boost_working_dir'])):
-            logging.error(f"RNA BAM calibration failed for sample {sample}.")
+            logging.error(f"RNA BAM calibration failed for sample {sample_name}.")
             return None
             
         split_bam_files.append(split_bam_path)
@@ -251,6 +251,48 @@ def filter_and_index_vcf(mutect_vcf: str, config: Dict[str, str]) -> Optional[st
     logging.info(f"VCF filtering and indexing complete. Final VCF: {known_vcf}")
     return known_vcf
 
+def run_boost_pipeline(config: Dict[str, Union[str, List[str]]]) -> Optional[str]:
+    """
+    Main function to run the boost pipeline programmatically.
+    
+    Args:
+        config: Dictionary containing all configuration parameters
+        
+    Returns:
+        Path to the final VCF file if successful, None otherwise
+    """
+    logging.info("=== Starting CADRES Boost Pipeline ===")
+    
+    # 1. Calibrate RNA BAMs
+    rna_split_bams = calibrate_rna_bams(config)
+    if not rna_split_bams:
+        logging.error("Pipeline aborted due to RNA calibration failure.")
+        return None
+        
+    # 2. Calibrate DNA BAM
+    recal_dna_bam = calibrate_dna_bam(config)
+    if not recal_dna_bam:
+        logging.error("Pipeline aborted due to DNA calibration failure.")
+        return None
+        
+    # 3. Run Mutect2
+    mutect_vcf = run_mutect2_boost(rna_split_bams, recal_dna_bam, config)
+    if not mutect_vcf:
+        logging.error("Pipeline aborted due to GATK Mutect2 failure.")
+        return None
+
+    # 4. Filter and Index VCF
+    final_vcf = filter_and_index_vcf(mutect_vcf, config)
+    if not final_vcf:
+        logging.error("Pipeline aborted due to VCF filtering/indexing failure.")
+        return None
+        
+    logging.info("=== CADRES Boost Pipeline Completed Successfully! ===")
+    logging.info(f"Final known sites VCF is available at: {final_vcf}")
+    
+    return final_vcf
+
+
 def main():
     """
     Main function to parse arguments and run the boost pipeline.
@@ -261,7 +303,6 @@ def main():
     parser.add_argument("--script_dir", required=True, help="Directory containing the helper python scripts (e.g., bam_calibration_*.py).")
     parser.add_argument("--genome", required=True, help="Path to the reference genome FASTA file.")
     parser.add_argument("--known_snv", required=True, help="Path to a VCF file of known SNVs (e.g., dbSNP).")
-    parser.add_argument("--rna_bam_dir", required=True, help="Directory containing input RNA BAM files (pre-calibration).")
     parser.add_argument("--dna_bam", required=True, help="Full path to the input DNA (WGS) BAM file.")
     parser.add_argument("--boost_working_dir", required=True, help="Main working directory for this boost pipeline.")
     parser.add_argument("--dna_bsqr_dir", required=True, help="Working directory for DNA BQSR steps.")
@@ -269,7 +310,7 @@ def main():
     # --- Naming and Sample Arguments ---
     parser.add_argument("--prefix", required=True, help="A general prefix for output files (e.g., 'ProjectX_V1').")
     parser.add_argument("--dna_name", required=True, help="The sample name for the DNA sample as used in the BAM's RG tag.")
-    parser.add_argument("--sample_list", required=True, nargs='+', help="A space-separated list of RNA sample names (without .bam extension).")
+    parser.add_argument("--rna_bam_files", required=True, nargs='+', help="A space-separated list of full paths to RNA BAM files.")
 
     args = parser.parse_args()
 
@@ -278,13 +319,12 @@ def main():
         "script_dir": args.script_dir,
         "genome": args.genome,
         "known_snv": args.known_snv,
-        "rna_bam_dir": args.rna_bam_dir,
         "dna_bam": args.dna_bam,
         "boost_working_dir": args.boost_working_dir,
         "dna_bsqr_dir": args.dna_bsqr_dir,
         "prefix": args.prefix,
         "dna_name": args.dna_name,
-        "sample_list": args.sample_list
+        "rna_bam_files": args.rna_bam_files
     }
 
     # --- Execute Pipeline ---

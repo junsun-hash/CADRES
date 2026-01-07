@@ -1,34 +1,32 @@
 #!/usr/bin/env python
 import argparse
 import sys
-from pyfaidx import Fasta
+import os
+import subprocess
+import tempfile
 
 def check_homopolymer(sequence, edit_nuc):
     """
-    Checks if the variant is in a homopolymer region based on the logic
-    from the original Perl script.
-    The sequence is 10bp long with the variant at the 5th position (index 4).
-    The original logic checks 5 windows of 5 bases.
+    检查变异是否位于同聚物区域
+    序列长度为9bp，变异位点在索引4的位置
+    原Perl脚本检查5个窗口，每个窗口4个碱基
     """
     s = sequence.upper()
     edit_nuc = edit_nuc.upper()
     
-    # The variant base is at index 4. The surrounding sequence is s[0:4] and s[5:9].
-    # The original Perl script had a bug in its logic, using splitseq[5] which should be the base after the variant.
-    # We will replicate the intended logic which is to check 5-base windows around the variant.
-    # Window 1: -4, -3, -2, -1, variant
+    # 窗口1: -4, -3, -2, -1 (索引0,1,2,3)
     if all(base == edit_nuc for base in (s[0], s[1], s[2], s[3])):
         return True
-    # Window 2: -3, -2, -1, variant, +1
+    # 窗口2: -3, -2, -1, +1 (索引1,2,3,5)
     if all(base == edit_nuc for base in (s[1], s[2], s[3], s[5])):
         return True
-    # Window 3: -2, -1, variant, +1, +2
+    # 窗口3: -2, -1, +1, +2 (索引2,3,5,6)
     if all(base == edit_nuc for base in (s[2], s[3], s[5], s[6])):
         return True
-    # Window 4: -1, variant, +1, +2, +3
+    # 窗口4: -1, +1, +2, +3 (索引3,5,6,7)
     if all(base == edit_nuc for base in (s[3], s[5], s[6], s[7])):
         return True
-    # Window 5: variant, +1, +2, +3, +4
+    # 窗口5: +1, +2, +3, +4 (索引5,6,7,8)
     if all(base == edit_nuc for base in (s[5], s[6], s[7], s[8])):
         return True
         
@@ -37,71 +35,97 @@ def check_homopolymer(sequence, edit_nuc):
 
 def filter_homopolymers(infile, outfile, refgenome_path):
     """
-    Filters out variants located in homopolymer regions.
-    Python replacement for filter_homopolymer_nucleotides.pl.
+    过滤位于同聚物区域的变异位点
+    Python替换filter_homopolymer_nucleotides.pl，使用fastaFromBed工具
     """
-    try:
-        # Load reference genome. pyfaidx will automatically look for a .fai index
-        # or create one if it doesn't exist.
-        genome = Fasta(refgenome_path)
-    except Exception as e:
-        sys.stderr.write(f"Error: Could not open or index reference genome file {refgenome_path}. Please ensure it is a valid FASTA file.\nError: {e}\n")
-        sys.exit(1)
-
     left_buffer = 4
     right_buffer = 4
-
-    with open(infile, 'r') as sites_file, \
-         open(outfile, 'w') as output_file, \
-         open(f"{outfile}_failed", 'w') as failed_file:
-        
-        for line in sites_file:
-            line = line.strip()
-            if not line:
-                continue
+    
+    # 创建临时文件
+    tmp_bed = infile + '.nuctmp'
+    tmp_fa = infile + '.tmpnuctmp'
+    
+    try:
+        with open(infile, 'r') as sites_file, \
+             open(outfile, 'w') as output_file, \
+             open(f"{outfile}_failed", 'w') as failed_file:
             
-            fields = line.split()
-            chrom, pos, edit_nuc = fields[0], int(fields[1]), fields[4]
-
-            # 1-based position from file, convert to 0-based for pyfaidx
-            start = pos - 1 - left_buffer
-            end = pos + right_buffer
-            
-            try:
-                # Fetch sequence. pyfaidx handles chromosome names like 'chr1' or '1'.
-                sequence = genome[chrom][start:end].seq
-            except KeyError:
-                sys.stderr.write(f"Warning: Chromosome '{chrom}' not found in reference genome. Skipping variant at {chrom}:{pos}.\n")
-                continue
-            except Exception as e:
-                sys.stderr.write(f"Warning: Could not fetch sequence for {chrom}:{start}-{end}. Skipping. Error: {e}\n")
-                continue
-
-            # The variant base itself is not in our fetched sequence, which is s[0:4] and s[5:9]. Let's verify.
-            # pos is 1-based. The base *at* pos is what we're testing.
-            # Our fetched sequence is from pos-4 to pos+4 (0-based: pos-1-4 to pos+4). The length is 9.
-            # Example: pos=100. fetch 95-104. Sequence is for bases 96,97,98,99, 101,102,103,104.
-            # This seems to match the perl script logic which reconstructs a 9-char string around the variant.
-            
-            is_homopolymer = check_homopolymer(sequence, edit_nuc)
-
-            if not is_homopolymer:
-                output_file.write(line + '\n')
-            else:
-                failed_file.write(line + '\n')
+            for line in sites_file:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                fields = line.split()
+                chrom = fields[0]
+                pos = int(fields[1])
+                edit_nuc = fields[4]
+                
+                # 计算BED格式的起始和结束位置
+                # BED格式是0-based，半开区间 [start, end)
+                # Perl脚本: startpos = position - leftbuffer, endpos = position + rightbuffer + 1
+                startpos = pos - left_buffer
+                endpos = pos + right_buffer + 1
+                
+                # 写入临时BED文件
+                with open(tmp_bed, 'w') as bed_file:
+                    bed_file.write(f"{chrom}\t{startpos}\t{endpos}\n")
+                
+                # 使用fastaFromBed提取序列
+                cmd = [
+                    "fastaFromBed",
+                    "-fi", refgenome_path,
+                    "-bed", tmp_bed,
+                    "-fo", tmp_fa
+                ]
+                
+                try:
+                    subprocess.run(cmd, check=True, capture_output=True, text=True)
+                except subprocess.CalledProcessError as e:
+                    sys.stderr.write(f"Error running fastaFromBed: {e.stderr}\n")
+                    continue
+                except FileNotFoundError:
+                    sys.stderr.write("Error: fastaFromBed not found. Please ensure BEDTools is installed.\n")
+                    sys.exit(1)
+                
+                # 读取提取的序列
+                seq = ''
+                with open(tmp_fa, 'r') as fa_file:
+                    for fa_line in fa_file:
+                        fa_line = fa_line.strip()
+                        if not fa_line.startswith('>'):
+                            seq += fa_line
+                
+                # 检查同聚物
+                is_homopolymer = check_homopolymer(seq, edit_nuc)
+                
+                if not is_homopolymer:
+                    output_file.write(line + '\n')
+                else:
+                    failed_file.write(line + '\n')
+                
+                # 删除临时文件
+                try:
+                    os.remove(tmp_fa)
+                    os.remove(tmp_bed)
+                except OSError:
+                    pass
+    
+    except IOError as e:
+        sys.stderr.write(f"Error opening files: {e}\n")
+        sys.exit(1)
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Homopolymer filter. Python replacement for filter_homopolymer_nucleotides.pl.",
+        description="同聚物过滤器。Python替换filter_homopolymer_nucleotides.pl。",
         formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument("-i", "--infile", required=True, help="File containing a list of variants to be filtered.")
-    parser.add_argument("-o", "--outfile", required=True, help="Output file for filtered variants.")
-    parser.add_argument("-r", "--refgenome", required=True, help="File in FASTA format containing the reference genome.")
+    parser.add_argument("-i", "--infile", required=True, help="包含待过滤变异位点的文件")
+    parser.add_argument("-o", "--outfile", required=True, help="过滤后变异位点的输出文件")
+    parser.add_argument("-r", "--refgenome", required=True, help="参考基因组FASTA格式文件")
     
     args = parser.parse_args()
     filter_homopolymers(args.infile, args.outfile, args.refgenome)
-    print("Homopolymer filtering complete.")
+    print("同聚物过滤完成。")
 
 if __name__ == '__main__':
     main()

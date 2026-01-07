@@ -1,34 +1,29 @@
 {
     "general": {
-      "prefix": "293T_V6",
-      "threads": 32,
-      "script_dir": ".",
+      "prefix": "293T",
+      "threads": 16,
+      "script_dir": "/home/sunjun/cadres/CADRES/",
       "log_file": "cadres_pipeline.log"
     },
     "paths": {
-      "genome": "/public3/home/scg8972/genome/plsmid/Homo_sapiens.GRCh38.dna.primary_assembly_plsmid.fa",
-      "known_snv_boost": "/public3/home/scg8972/genome/dbsnp150.vcf",
-      "known_snv_anno": "/public3/home/scg8972/genome/dbsnp150_reorder.vcf",
-      "genome_ad": "/public3/home/scg8972/genome/germline_resource/af-only-gnomad_chr_3.hg38.vcf",
-      "known_editing": "/public3/home/scg8972/genome/DVR_ref/REDIportal_AtoI.txt",
-      "gene_anno": "/public3/home/scg8972/genome/DVR_ref/refGene.txt",
-      "input_rna_bam_dir": "/public3/home/scg8972/0_czhang/DVR_Analysis/2_BAM_RNA-seq/293T/",
-      "input_dna_bam": "/public3/home/scg8972/0_czhang/DVR_Analysis/1_BAM_WGS/293T/C6-WGSA_plasmid_sorted.bam"
+      "genome": "/home/sunjun/hdd/sunjun_file/genome/plsmid/Homo_sapiens.GRCh38.dna.primary_assembly_plsmid.fa",
+      "known_snv_boost": "/home/sunjun/hdd/sunjun_file/genome/dbsnp150.vcf",
+      "known_snv_anno": "/home/sunjun/hdd/sunjun_file/genome/dbsnp150_reorder.vcf",
+      "genome_ad": "/home/sunjun/hdd/sunjun_file/genome/germline_resource/af-only-gnomad_chr_3.hg38.vcf",
+      "known_editing": "/home/sunjun/hdd/sunjun_file/genome/DVR_ref/REDIportal_AtoI.txt",
+      "gene_anno": "/home/sunjun/hdd/sunjun_file/genome/DVR_ref/refGene.txt",
+      "input_rna_bam_dir": "/home/sunjun/cadres/2_rna_bam/",
+      "input_dna_bam": "/home/sunjun/cadres/1_dna_bam/test_sorted.bam",
+      "group1_rna_bam_files": ["/home/sunjun/cadres/2_rna_bam/C6-DOX-1A_merged_chr22.bam", "/home/sunjun/cadres/2_rna_bam/C6-DOX-2A_merged_chr22.bam", "/home/sunjun/cadres/2_rna_bam/C6-DOX-1C_merged_chr22.bam"],
+      "group2_rna_bam_files": ["/home/sunjun/cadres/2_rna_bam/C6+DOX-1A_merged_chr22.bam", "/home/sunjun/cadres/2_rna_bam/C6+DOX-2A_merged_chr22.bam", "/home/sunjun/cadres/2_rna_bam/C6+DOX-3A_merged_chr22.bam"]
     },
     "work_dirs": {
-      "boost_working_dir": "/public3/home/scg8972/0_czhang/DVR_Analysis/2.5_boosted_scan/293T_V6/",
-      "dna_bqsr_dir": "/public3/home/scg8972/0_czhang/DVR_Analysis/4_BQSR_DNA/293T_COM/",
-      "rna_bqsr_dir": "/public3/home/scg8972/0_czhang/DVR_Analysis/3_BQSR_RNA/293T_V6/",
-      "rv_working_dir": "/public3/home/scg8972/0_czhang/DVR_Analysis/5_mutect2/293T_V6/"
+      "boost_working_dir": "/home/sunjun/cadres/3_boost_scan/",
+      "dna_bqsr_dir": "/home/sunjun/cadres/4_dna_bqsr/",
+      "rna_bqsr_dir": "/home/sunjun/cadres/5_rna_bqsr/",
+      "rv_working_dir": "/home/sunjun/cadres/6_mutect2/"
     },
     "samples": {
-      "dna_name": "C6_WGS",
-      "all_rna_samples": [
-        "C6-DMSO-1", "C6-DMSO-2", "C6-DMSO-3",
-        "C6-DOX-1", "C6-DOX-2", "C6-DOX-3"
-      ],
-      "group1_names": ["C6-DMSO-1", "C6-DMSO-2", "C6-DMSO-3"],
-      "group2_names": ["C6-DOX-1", "C6-DOX-2", "C6-DOX-3"],
       "group1_label": "DMSO",
       "group2_label": "DOX"
     }

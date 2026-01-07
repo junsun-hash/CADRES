@@ -104,10 +104,13 @@ def bqsr_rna(config: Dict) -> Optional[Tuple[List[str], List[str]]]:
     recal_reports = []
     recalibrated_bams = []
     
+    # Combine BAM files from both groups
+    all_bam_files = config['rna_bam_sample1'] + config['rna_bam_sample2']
+    
     # BaseRecalibrator for each sample
-    for sample in config['sample_list']:
-        input_bam = os.path.join(config['boost_working_dir'], f"{sample}_split.bam")
-        report_grp = os.path.join(rna_bqsr_dir, f"{sample}_recalibration_report.grp")
+    for i, input_bam in enumerate(all_bam_files):
+        sample_name = os.path.basename(input_bam).replace('.bam', '')
+        report_grp = os.path.join(rna_bqsr_dir, f"{sample_name}_recalibration_report.grp")
         cmd_br = [
             "gatk", "BaseRecalibrator",
             "-I", input_bam,
@@ -129,9 +132,9 @@ def bqsr_rna(config: Dict) -> Optional[Tuple[List[str], List[str]]]:
         return None
 
     # ApplyBQSR for each sample
-    for sample in config['sample_list']:
-        input_bam = os.path.join(config['boost_working_dir'], f"{sample}_split.bam")
-        output_bam = os.path.join(rna_bqsr_dir, f"{sample}_recalibration.bam")
+    for i, input_bam in enumerate(all_bam_files):
+        sample_name = os.path.basename(input_bam).replace('.bam', '')
+        output_bam = os.path.join(rna_bqsr_dir, f"{sample_name}_recalibration.bam")
         cmd_apply = [
             "gatk", "ApplyBQSR",
             "-R", config['genome'],
@@ -155,8 +158,8 @@ def calculate_contamination(recal_bams: List[str], config: Dict) -> Optional[Lis
     rna_bqsr_dir = config['rna_bqsr_dir']
     contamination_tables = []
     
-    for i, recal_bam in enumerate(recal_bams):
-        sample_name = config['sample_list'][i]
+    for recal_bam in recal_bams:
+        sample_name = os.path.basename(recal_bam).replace('_recalibration.bam', '')
         pileups_table = os.path.join(rna_bqsr_dir, f"{sample_name}_pileups.table")
         contam_table = os.path.join(rna_bqsr_dir, f"{sample_name}_contamination.table")
         
@@ -408,6 +411,46 @@ def run_dvr_analysis(final_vcf: str, recal_bams: List[str], config: Dict) -> boo
 
     logging.info(f"DVR analysis complete. Final results: {final_annotated_results}")
     return True
+
+def run_dvr_pipeline(config: Dict) -> bool:
+    """
+    Main function to run the DVR pipeline programmatically.
+    
+    Args:
+        config: Dictionary containing all configuration parameters
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    logging.info("=== Starting CADRES DVR Pipeline ===")
+    
+    recal_bams, _ = bqsr_rna(config)
+    if not recal_bams:
+        logging.error("Pipeline aborted at BQSR step.")
+        return False
+
+    contam_tables = calculate_contamination(recal_bams, config)
+    if not contam_tables:
+        logging.error("Pipeline aborted at contamination calculation step.")
+        return False
+        
+    snv_vcf = call_and_filter_rv(recal_bams, contam_tables, config)
+    if not snv_vcf:
+        logging.error("Pipeline aborted at variant calling step.")
+        return False
+
+    final_vcf = custom_filter_variants(snv_vcf, recal_bams, config)
+    if not final_vcf:
+        logging.error("Pipeline aborted at custom filtering step.")
+        return False
+        
+    if not run_dvr_analysis(final_vcf, recal_bams, config):
+        logging.error("Pipeline aborted at DVR analysis step.")
+        return False
+        
+    logging.info("=== CADRES DVR Pipeline Completed Successfully! ===")
+    return True
+
 
 def main():
     """

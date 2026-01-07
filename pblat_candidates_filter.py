@@ -1,171 +1,295 @@
 #!/usr/bin/env python
-import argparse
+"""
+BLAT filter for RNA editing candidates.
+Python replacement for pblat_candidates_ln.pl.
+This script ensures complete functional equivalence with the original Perl script.
+"""
+
 import sys
 import os
+import argparse
 import subprocess
 from collections import defaultdict
-import pysam
 
-def run_command(command):
-    """Runs a command using subprocess and handles errors."""
+
+def run_command(command, cwd=None):
+    """
+    Runs a command using subprocess and handles errors.
+    """
     try:
-        subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        result = subprocess.run(
+            command,
+            shell=True,
+            check=True,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        return True
     except subprocess.CalledProcessError as e:
         sys.stderr.write(f"Error executing command: {e.cmd}\n")
-        sys.stderr.write(f"Stderr: {e.stderr.decode()}\n")
-        sys.exit(1)
+        sys.stderr.write(f"Stderr: {e.stderr}\n")
+        return False
 
-def prepare_blat_input(infile, bam_path, fa_path, min_base_qual, qual_offset):
+
+def prepare_blat_input(infile, bam_path, fa_path, min_base_qual, qual_offset, threads, samtools_exe):
     """
     Reads a variant file, extracts reads from a BAM file supporting the variant,
     and writes them to a FASTA file for PBLAT.
+    This function replicates the exact logic from the Perl script.
     """
-    print("Preparing BLAT input...")
-    mismatch_read_count = 0
-    try:
-        bamfile = pysam.AlignmentFile(bam_path, "rb")
-    except Exception as e:
-        sys.stderr.write(f"Error opening BAM file {bam_path}: {e}\n")
-        sys.exit(1)
-
+    print("preparing blat input...")
+    
     with open(infile, 'r') as sites_file, open(fa_path, 'w') as fa_file:
         for line in sites_file:
-            fields = line.strip().split()
-            chrom, pos, alt_nuc = fields[0], int(fields[1]), fields[4]
-            pos_0based = pos - 1
-
-            # Fetch reads covering the specific site
+            line = line.strip()
+            if not line:
+                continue
+            
+            fields = line.split()
+            chrom = fields[0]
+            position = int(fields[1])
+            edit_nuc = fields[4]
+            
+            # Create temporary file for samtools output
+            temp_name = f"{fa_path}_tmp_{chrom}_{position}"
+            bam_position = f"{chrom}:{position}-{position}"
+            
+            # Run samtools view to extract reads at this position
+            cmd = f"{samtools_exe} view -@ {threads} {bam_path} {bam_position} > {temp_name}"
+            if not run_command(cmd):
+                sys.stderr.write(f"Warning: Failed to extract reads for {chrom}:{position}\n")
+                continue
+            
+            mismatch_read_count = 0
+            
+            # Process each read from samtools output
             try:
-                for read in bamfile.fetch(chrom, pos_0based, pos_0based + 1):
-                    if read.is_unmapped or read.is_duplicate:
-                        continue
-                    
-                    # Find the read base corresponding to the variant position
-                    read_pos = -1
-                    ref_pos_lookup = dict(read.get_aligned_pairs(matches_only=True))
-                    
-                    if pos_0based in ref_pos_lookup:
-                        read_pos = ref_pos_lookup[pos_0based]
+                with open(temp_name, 'r') as tmp_file:
+                    for bam_line in tmp_file:
+                        bam_line = bam_line.strip()
+                        if not bam_line:
+                            continue
                         
-                        read_base = read.query_sequence[read_pos]
-                        base_qual = read.query_qualities[read_pos]
-
-                        if read_base.upper() == alt_nuc.upper() and base_qual >= min_base_qual:
-                            # Write read to FASTA file
-                            fa_file.write(f">{chrom}-{pos}-{mismatch_read_count}\n{read.query_sequence}\n")
+                        bam_fields = bam_line.split('\t')
+                        if len(bam_fields) < 11:
+                            continue
+                        
+                        alignment = int(bam_fields[1])
+                        read_start = int(bam_fields[3])
+                        cigar = bam_fields[5]
+                        sequence = bam_fields[9]
+                        qualities = bam_fields[10]
+                        
+                        sequence_bases = list(sequence)
+                        qual_scores = list(qualities)
+                        
+                        current_pos = read_start
+                        read_pos = 1
+                        base_readpos = 0
+                        
+                        # Parse CIGAR string - exact replication of Perl logic
+                        import re
+                        cigarnums = re.split(r'[MIDNSHP]', cigar)
+                        cigarletters = re.split(r'[0-9]+', cigar)
+                        cigarletters = cigarletters[1:]  # Remove first empty element
+                        
+                        for i in range(len(cigarnums)):
+                            # Optimization: stop if we've passed the position
+                            if current_pos > position:
+                                break
+                            
+                            cigar_num = int(cigarnums[i]) if cigarnums[i] else 0
+                            cigar_letter = cigarletters[i] if i < len(cigarletters) else ''
+                            
+                            # Handle soft clipping (S) or hard clipping (I)
+                            if cigar_letter in ['S', 'I']:
+                                read_pos = read_pos + cigar_num
+                            # Handle deletion (D) or N (skip from reference)
+                            elif cigar_letter in ['D', 'N']:
+                                current_pos = current_pos + cigar_num
+                            # Handle match/mismatch (M)
+                            elif cigar_letter == 'M':
+                                for j in range(cigar_num):
+                                    if current_pos == position:
+                                        # Check if this is the edited base with sufficient quality
+                                        if (read_pos - 1 < len(sequence_bases) and 
+                                            read_pos - 1 < len(qual_scores) and
+                                            sequence_bases[read_pos - 1] == edit_nuc and
+                                            ord(qual_scores[read_pos - 1]) >= min_base_qual + qual_offset):
+                                            base_readpos = 1
+                                    
+                                    current_pos += 1
+                                    read_pos += 1
+                        
+                        # If this read supports the variant, write to FASTA
+                        if base_readpos:
+                            fa_file.write(f">{chrom}-{position}-{mismatch_read_count}\n{sequence}\n")
                             mismatch_read_count += 1
-            except ValueError as e:
-                 sys.stderr.write(f"Warning: Could not fetch reads for region {chrom}:{pos}. Skipping. Pysam error: {e}\n")
+                            
+            except IOError as e:
+                sys.stderr.write(f"Warning: Error processing temp file {temp_name}: {e}\n")
+            
+            # Clean up temporary file
+            try:
+                os.remove(temp_name)
+            except OSError:
+                pass
+    
+    return True
 
-
-    bamfile.close()
-    return mismatch_read_count > 0
 
 def run_pblat(refgenome, fa_path, psl_path, threads, pblat_exe):
-    """Runs PBLAT on the generated FASTA file."""
-    print(f"Blatting reads (threads: {threads})...")
+    """
+    Runs PBLAT on the generated FASTA file.
+    """
+    print(f"blatting reads (threads: {threads})...")
     pblat_params = (
         f"-threads={threads} -stepSize=5 -repMatch=2253 -minScore=20 "
         f"-minIdentity=0 -noHead {refgenome} {fa_path} {psl_path}"
     )
     command = f"{pblat_exe} {pblat_params}"
-    run_command(command)
+    return run_command(command)
+
 
 def process_pblat_results(psl_path, score_limit):
     """
     Processes the PSL output to identify uniquely mapped reads.
     Returns two dictionaries: one for valid sites and one for discarded reads.
     """
-    print("Processing PBLAT results...")
+    print("processing reads...")
+    
+    # PSL format: https://genome.ucsc.edu/FAQ/FAQformat.html#format12
+    # Fields (0-indexed):
+    # 0: matches (score)
+    # 9: Q name (query name)
+    # 13: T name (target name/chromosome)
+    # 17: block count
+    # 18: block sizes
+    # 20: block starts
+    
     psl_hash = defaultdict(list)
+    
     with open(psl_path, 'r') as psl_file:
         for line in psl_file:
-            fields = line.strip().split()
-            match, t_name, t_start, q_name = fields[0], fields[13], int(fields[15]), fields[9]
-            num_blocks, block_sizes, t_starts = fields[17], fields[18], fields[20]
+            line = line.strip()
+            if not line:
+                continue
             
-            psl_hash[q_name].append({
-                'score': int(match),
-                't_name': t_name,
-                't_start': t_start,
-                'num_blocks': int(num_blocks),
-                'block_sizes': [int(x) for x in block_sizes.split(',') if x],
-                't_starts': [int(x) for x in t_starts.split(',') if x]
-            })
-
+            psl_fields = line.split('\t')
+            if len(psl_fields) < 21:
+                continue
+            
+            name = psl_fields[9]
+            # Create blatscore string: matches@Tname@blockcount@blocksizes@blockstarts
+            blatscore = f"{psl_fields[0]}@{psl_fields[13]}@{psl_fields[17]}@{psl_fields[18]}@{psl_fields[20]}"
+            
+            if psl_hash[name]:
+                psl_hash[name] = f"{psl_hash[name]}-{blatscore}"
+            else:
+                psl_hash[name] = blatscore
+    
     site_hash = defaultdict(int)
     discard_hash = defaultdict(int)
-
-    for read_name, alignments in psl_hash.items():
-        chrom, pos_str, _ = read_name.split('-')
-        site_key = f"{chrom}_{pos_str}"
-        pos = int(pos_str)
-
-        if not alignments:
-            continue
-
-        # Sort by score descending
-        alignments.sort(key=lambda x: x['score'], reverse=True)
-        best_alignment = alignments[0]
-        score_best = best_alignment['score']
+    
+    for psl_key in psl_hash.keys():
+        # Parse the key: chr-position-mismatchcount
+        split_key = psl_key.split('-')
+        site = f"{split_key[0]}_{split_key[1]}"
         
-        # Check if secondary alignments are too good
-        score_second_best = alignments[1]['score'] if len(alignments) > 1 else 0
-
-        # Check if the best alignment is the correct one and unique enough
-        if best_alignment['t_name'] == chrom and score_second_best < (score_best * score_limit):
-            # Check if the variant position is within any of the aligned blocks
-            overlap_found = False
-            for i in range(best_alignment['num_blocks']):
-                block_start = best_alignment['t_starts'][i] + 1  # PSL is 0-based, VCF is 1-based
-                block_end = block_start + best_alignment['block_sizes'][i] - 1
-                if block_start <= pos <= block_end:
-                    overlap_found = True
+        # Parse all alignments for this read
+        psl_lines = psl_hash[psl_key].split('-')
+        
+        largest_score = 0
+        largest_score_line = psl_lines[0]
+        score_array = []
+        
+        for score_line in psl_lines:
+            scores_array = score_line.split('@')
+            line_score = int(scores_array[0])
+            score_array.append(line_score)
+            
+            if line_score > largest_score:
+                largest_score_line = score_line
+                largest_score = line_score
+        
+        # Sort scores in descending order
+        score_array.sort(reverse=True)
+        score_array[1] = 0 if len(score_array) < 2 else score_array[1]
+        
+        # Parse the best alignment
+        split_largest_line = largest_score_line.split('@')
+        overlap_found = 0
+        
+        # Check if best alignment is on correct chromosome and unique enough
+        if (split_largest_line[1] == split_key[0] and 
+            score_array[1] < (score_array[0] * score_limit)):
+            
+            num_blocks = int(split_largest_line[2])
+            block_sizes = split_largest_line[3].split(',')
+            block_starts = split_largest_line[4].split(',')
+            
+            # Check if variant position is within any aligned block
+            for i in range(num_blocks):
+                start_pos = int(block_starts[i]) + 1  # Convert from 0-based to 1-based
+                end_pos = int(block_starts[i]) + int(block_sizes[i])
+                
+                if int(split_key[1]) >= start_pos and int(split_key[1]) <= end_pos:
+                    overlap_found = 1
                     break
             
             if overlap_found:
-                site_hash[site_key] += 1
+                if site_hash[site]:
+                    site_hash[site] += 1
+                else:
+                    site_hash[site] = 1
+        
+        if not overlap_found:
+            if discard_hash[site]:
+                discard_hash[site] += 1
             else:
-                discard_hash[site_key] += 1
-        else:
-            discard_hash[site_key] += 1
-            
+                discard_hash[site] = 1
+    
     return site_hash, discard_hash
 
+
 def finalize_output(infile, outfile, site_hash, discard_hash, min_mismatch):
-    """Writes the final filtered output."""
-    print("Writing final output...")
+    """
+    Writes the final filtered output.
+    """
     with open(infile, 'r') as sites_file, \
          open(outfile, 'w') as out_file, \
          open(f"{outfile}_failed", 'w') as failed_file:
+        
         for line in sites_file:
             line = line.strip()
+            if not line:
+                continue
+            
             fields = line.split()
             name = f"{fields[0]}_{fields[1]}"
             
             if name in site_hash:
                 new_alter = site_hash[name]
-                discard_num = discard_hash.get(name, 0)
-
+                
+                if name in discard_hash:
+                    discard_num = discard_hash[name]
+                else:
+                    discard_num = 0
+                
+                # Parse original coverage and alter count
+                cov_str = fields[2]
+                cov_parts = cov_str.split(',')
+                cov = int(cov_parts[0])
+                old_alter = int(cov_parts[1])
+                
+                # Recalculate coverage and editing frequency
+                new_cov = cov - (old_alter - new_alter)
+                new_edit_freq = f"{new_alter/new_cov:.3f}" if new_cov > 0 else "0.000"
+                
                 if new_alter >= min_mismatch and new_alter > discard_num:
-                    # Original script recalculates coverage, but the logic is complex
-                    # and depends on fields not clearly defined.
-                    # Replicating the simple filtering logic first.
-                    # $fields[2] = "new_cov,new_alter"
-                    # $fields[5] = "new_edit_freq"
-                    # For now, let's just output the passed variants.
-                    # The original script does complex recalculation of coverage and frequency.
-                    # This is a simplified port focusing on the filtering logic.
-                    # The original fields: $1, $2, $3(cov,alter), $4, $5, $6(freq)
-                    old_cov, old_alter = map(int, fields[2].split(','))
-                    new_cov = old_cov - (old_alter - new_alter)
-                    new_freq = f"{new_alter/new_cov:.3f}" if new_cov > 0 else "0.000"
-                    
-                    out_fields = [
-                        fields[0], fields[1], f"{new_cov},{new_alter}",
-                        fields[3], fields[4], new_freq
-                    ]
-                    out_file.write("\t".join(out_fields) + '\n')
+                    out_file.write(f"{fields[0]}\t{fields[1]}\t{new_cov},{new_alter}\t{fields[3]}\t{fields[4]}\t{new_edit_freq}\n")
                 else:
                     reason = f"failed_freq #mismatches: {new_alter} #minimumMismatchesNecessary: {min_mismatch} #discarded mismatch reads: {discard_num}"
                     failed_file.write(f"{line}\t{reason}\n")
@@ -187,17 +311,22 @@ def main():
     parser.add_argument("--scorelimit", type=float, default=0.95, help="Max score of secondary alignments relative to best (default: 0.95).")
     parser.add_argument("--threads", type=int, default=1, help="Number of threads for pblat (default: 1).")
     parser.add_argument("--pblat-path", default="pblat", help="Path to the pblat executable (default: 'pblat').")
+    parser.add_argument("--samtools-path", default="samtools", help="Path to the samtools executable (default: 'samtools').")
+    parser.add_argument("--illumina", action="store_true", help="Reads in the bam file are in Illumina 1.3+ FASTQ-like format (quality offset 64).")
 
     args = parser.parse_args()
     
+    # Set quality offset based on format
+    qual_offset = 64 if args.illumina else 33
+    
     # Define temporary file names
-    base_name = os.path.splitext(args.infile)[0]
-    fa_path = f"{base_name}.pblat_temp.fa"
-    psl_path = f"{base_name}.pblat_temp.psl"
+    base_name = args.infile
+    fa_path = f"{base_name}.fatmp"
+    psl_path = f"{base_name}.psltmp"
 
     try:
         # Step 1: Create FASTA from BAM for reads supporting variants
-        if not prepare_blat_input(args.infile, args.bamfile, fa_path, args.minbasequal, 33):
+        if not prepare_blat_input(args.infile, args.bamfile, fa_path, args.minbasequal, qual_offset, args.threads, args.samtools_path):
             print("No reads found supporting the variants. Exiting.")
             # Create empty output files to prevent pipeline failure
             open(args.outfile, 'w').close()
@@ -205,7 +334,9 @@ def main():
             sys.exit(0)
 
         # Step 2: Run pblat
-        run_pblat(args.refgenome, fa_path, psl_path, args.threads, args.pblat_path)
+        if not run_pblat(args.refgenome, fa_path, psl_path, args.threads, args.pblat_path):
+            sys.stderr.write("PBLAT failed. Exiting.\n")
+            sys.exit(1)
 
         # Step 3: Process pblat results
         site_hash, discard_hash = process_pblat_results(psl_path, args.scorelimit)
@@ -216,9 +347,15 @@ def main():
     finally:
         # Clean up temporary files
         if os.path.exists(fa_path):
-            os.remove(fa_path)
+            try:
+                os.remove(fa_path)
+            except OSError:
+                pass
         if os.path.exists(psl_path):
-            os.remove(psl_path)
+            try:
+                os.remove(psl_path)
+            except OSError:
+                pass
     
     print("PBLAT filtering complete.")
 
