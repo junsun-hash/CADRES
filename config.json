@@ -13,10 +13,10 @@
       "known_editing": "/home/sunjun/hdd/sunjun_file/genome/DVR_ref/REDIportal_AtoI.txt",
       "gene_anno": "/home/sunjun/hdd/sunjun_file/genome/DVR_ref/refGene.txt",
       "input_rna_bam_dir": "/home/sunjun/cadres/2_rna_bam/",
-      "input_dna_bam": "/home/sunjun/cadres/1_dna_bam/test_sorted.bam",
-      "group1_rna_bam_files": ["/home/sunjun/cadres/2_rna_bam/C6-DOX-1A_merged_chr22.bam", "/home/sunjun/cadres/2_rna_bam/C6-DOX-2A_merged_chr22.bam", "/home/sunjun/cadres/2_rna_bam/C6-DOX-1C_merged_chr22.bam"],
-      "group2_rna_bam_files": ["/home/sunjun/cadres/2_rna_bam/C6+DOX-1A_merged_chr22.bam", "/home/sunjun/cadres/2_rna_bam/C6+DOX-2A_merged_chr22.bam", "/home/sunjun/cadres/2_rna_bam/C6+DOX-3A_merged_chr22.bam"]
-    },
+      "input_dna_bam": "/home/sunjun/cadres/1_dna_bam/test.sorted.bam",
+      "group1_rna_bam_files": ["/home/sunjun/cadres/2_rna_bam/C6-DOX-1A_Aligned.sortedByCoord.out.bam", "/home/sunjun/cadres/2_rna_bam/C6-DOX-2A_Aligned.sortedByCoord.out.bam", "/home/sunjun/cadres/2_rna_bam/C6-DOX-3A_Aligned.sortedByCoord.out.bam"],
+      "group2_rna_bam_files": ["/home/sunjun/cadres/2_rna_bam/C6+DOX-1A_Aligned.sortedByCoord.out.bam", "/home/sunjun/cadres/2_rna_bam/C6+DOX-2A_Aligned.sortedByCoord.out.bam", "/home/sunjun/cadres/2_rna_bam/C6+DOX-3A_Aligned.sortedByCoord.out.bam"]
+    },  
     "work_dirs": {
       "boost_working_dir": "/home/sunjun/cadres/3_boost_scan/",
       "dna_bqsr_dir": "/home/sunjun/cadres/4_dna_bqsr/",

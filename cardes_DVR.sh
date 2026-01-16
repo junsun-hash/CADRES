@@ -5,7 +5,7 @@
 #SBATCH -c 64  
 #SBATCH -o /public3/home/scg8972/slurm/slurm-%j.out  
 set -x
-source activate DVR
+conda activate CADRES
 #GATK 4 picard 2.20 samtools 1.16.1 bedtools v2.31.0
 genome=/public3/home/scg8972/genome/plsmid/Homo_sapiens.GRCh38.dna.primary_assembly_plsmid.fa
 prefix=293T_V6

@@ -30,9 +30,9 @@ logging.basicConfig(level=logging.DEBUG,
 sample_name = os.path.basename(label)
 
 # mark and index bam
-com1='picard ReorderSam INPUT='+bam+' OUTPUT='+label+'_reordered.bam S=true R='+genome
-com2='picard AddOrReplaceReadGroups INPUT='+label+'_reordered.bam OUTPUT='+label+'_addrg.bam RGID='+sample_name+' RGLB='+sample_name+' RGPL=COMPLETE RGPU=lane1 RGSM='+sample_name
-com3='picard MarkDuplicates INPUT='+label+'_addrg.bam OUTPUT='+label+'_dedup.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT READ_NAME_REGEX=null METRICS_FILE='+label+'_metrics.txt'
+com1='picard ReorderSam -INPUT '+bam+' -OUTPUT '+label+'_reordered.bam -S true -R '+genome+' -SEQUENCE_DICTIONARY '+genome
+com2='picard AddOrReplaceReadGroups -INPUT '+label+'_reordered.bam -OUTPUT '+label+'_addrg.bam -RGID '+sample_name+' -RGLB '+sample_name+' -RGPL COMPLETE -RGPU lane1 -RGSM '+sample_name
+com3='picard MarkDuplicates -INPUT '+label+'_addrg.bam -OUTPUT '+label+'_dedup.bam -CREATE_INDEX true -VALIDATION_STRINGENCY SILENT -READ_NAME_REGEX null -METRICS_FILE '+label+'_metrics.txt'
 
 # SplitNCigarReads
 #com5='java -Xmx4g -jar '+directory+'GenomeAnalysisTK.jar -T RealignerTargetCreator -R '+genome+' -I '+label+'_dedup.bam -o '+label+'_realigner.intervals -known /data/scratch/DCT/UCCT/STMOLPHA/czhang/genomes/indel/sorted_final.vcf'

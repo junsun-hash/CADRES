@@ -20,6 +20,7 @@ This script is designed to be modular and can be called from a master workflow.
 import os
 import sys
 import subprocess
+import shutil
 import logging
 import argparse
 from typing import List, Dict, Optional, Union, Tuple
@@ -93,9 +94,57 @@ def ensure_dir_exists(path: str):
 
 # --- Pipeline Step Functions ---
 
+def has_read_group(bam_file: str) -> bool:
+    """Check if a BAM file has at least one read group."""
+    try:
+        cmd = ["samtools", "view", "-H", bam_file]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return "@RG" in result.stdout
+    except subprocess.CalledProcessError:
+        return False
+
+def add_read_group(input_bam: str, output_bam: str, sample_name: str) -> bool:
+    """Add read group to a BAM file using GATK AddOrReplaceReadGroups."""
+    cmd = [
+        "gatk", "AddOrReplaceReadGroups",
+        "-I", input_bam,
+        "-O", output_bam,
+        "-ID", "1",
+        "-LB", "lib1",
+        "-PL", "ILLUMINA",
+        "-PU", "unit1",
+        "-SM", sample_name
+    ]
+    return run_command(cmd, cwd=os.path.dirname(output_bam) or ".")
+
+def ensure_read_group(bam_file: str, working_dir: str) -> str:
+    """Ensure BAM file has read groups. If not, add them. Returns the path to the BAM file with read groups."""
+    if has_read_group(bam_file):
+        logging.info(f"BAM file already has read group: {bam_file}")
+        return bam_file
+    
+    logging.info(f"Adding read group to BAM file: {bam_file}")
+    sample_name = os.path.basename(bam_file).replace('.bam', '')
+    output_bam = os.path.join(working_dir, f"{sample_name}_with_rg.bam")
+    
+    if not add_read_group(bam_file, output_bam, sample_name):
+        raise RuntimeError(f"Failed to add read group to {bam_file}")
+    
+    return output_bam
+
+def has_recalibration_data(report_file: str) -> bool:
+    """Check if a recalibration report has actual data."""
+    try:
+        with open(report_file, 'r') as f:
+            content = f.read()
+            return 'Arguments' in content and 'RecalTable0' in content
+    except Exception:
+        return False
+
 def bqsr_rna(config: Dict) -> Optional[Tuple[List[str], List[str]]]:
     """
     Step 1: Perform Base Quality Score Recalibration (BQSR) on RNA BAMs.
+    If no usable recalibration data is found, returns the original BAM files with read groups.
     """
     logging.info("--- Step 1: Performing BQSR on RNA BAMs ---")
     rna_bqsr_dir = config['rna_bqsr_dir']
@@ -107,8 +156,14 @@ def bqsr_rna(config: Dict) -> Optional[Tuple[List[str], List[str]]]:
     # Combine BAM files from both groups
     all_bam_files = config['rna_bam_sample1'] + config['rna_bam_sample2']
     
+    # Ensure all BAM files have read groups
+    processed_bam_files = []
+    for input_bam in all_bam_files:
+        processed_bam = ensure_read_group(input_bam, rna_bqsr_dir)
+        processed_bam_files.append(processed_bam)
+    
     # BaseRecalibrator for each sample
-    for i, input_bam in enumerate(all_bam_files):
+    for i, input_bam in enumerate(processed_bam_files):
         sample_name = os.path.basename(input_bam).replace('.bam', '')
         report_grp = os.path.join(rna_bqsr_dir, f"{sample_name}_recalibration_report.grp")
         cmd_br = [
@@ -122,17 +177,38 @@ def bqsr_rna(config: Dict) -> Optional[Tuple[List[str], List[str]]]:
             return None
         recal_reports.append(report_grp)
 
-    # GatherBQSRReports
+    # Check if we have usable recalibration data
+    has_data = all(has_recalibration_data(report) for report in recal_reports)
+    
+    if not has_data:
+        logging.warning("No usable recalibration data found in reports. Skipping BQSR and using original BAMs with read groups.")
+        for bam in processed_bam_files:
+            sample_name = os.path.basename(bam).replace('_with_rg.bam', '').replace('.bam', '')
+            output_bam = os.path.join(rna_bqsr_dir, f"{sample_name}_recalibration.bam")
+            if bam.endswith('_with_rg.bam'):
+                shutil.copy(bam, output_bam)
+            else:
+                shutil.copy(bam, output_bam)
+            recalibrated_bams.append(output_bam)
+        return recalibrated_bams, []
+
+    # GatherBQSRReports - only gather if there are multiple reports and they have data
     gathered_report = os.path.join(rna_bqsr_dir, f"{config['prefix']}_recalibration_report.grp")
-    cmd_gather = ["gatk", "GatherBQSRReports"]
-    for report in recal_reports:
-        cmd_gather.extend(["-I", report])
-    cmd_gather.extend(["-O", gathered_report])
-    if not run_command(cmd_gather, cwd=rna_bqsr_dir):
-        return None
+    
+    if len(recal_reports) == 1:
+        logging.info("Only one recalibration report, using it directly without gathering.")
+        gathered_report = recal_reports[0]
+    else:
+        cmd_gather = ["gatk", "GatherBQSRReports"]
+        for report in recal_reports:
+            cmd_gather.extend(["-I", report])
+        cmd_gather.extend(["-O", gathered_report])
+        if not run_command(cmd_gather, cwd=rna_bqsr_dir):
+            logging.warning("GatherBQSRReports failed, trying to use individual reports.")
+            gathered_report = recal_reports[0]
 
     # ApplyBQSR for each sample
-    for i, input_bam in enumerate(all_bam_files):
+    for i, input_bam in enumerate(processed_bam_files):
         sample_name = os.path.basename(input_bam).replace('.bam', '')
         output_bam = os.path.join(rna_bqsr_dir, f"{sample_name}_recalibration.bam")
         cmd_apply = [

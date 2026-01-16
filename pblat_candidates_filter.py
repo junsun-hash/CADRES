@@ -333,6 +333,13 @@ def main():
             open(f"{args.outfile}_failed", 'w').close()
             sys.exit(0)
 
+        # Check if the generated FASTA file is empty (meaning no reads were extracted)
+        if os.path.getsize(fa_path) == 0:
+            print("No reads extracted for pblat (empty fasta). Exiting.")
+            open(args.outfile, 'w').close()
+            open(f"{args.outfile}_failed", 'w').close()
+            sys.exit(0)
+
         # Step 2: Run pblat
         if not run_pblat(args.refgenome, fa_path, psl_path, args.threads, args.pblat_path):
             sys.stderr.write("PBLAT failed. Exiting.\n")

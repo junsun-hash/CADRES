@@ -1,24 +1,24 @@
 #!/bin/bash  
 set -x
-
+conda activate CADRES
 #GATK 4 picard 2.20 samtools 1.16.1 bedtools v2.31.0
-genome=
-prefix=293T_V6
+genome=/home/sunjun/hdd/sunjun_file/genome/plsmid/Homo_sapiens.GRCh38.dna.primary_assembly_plsmid.fa
+prefix=test_293
 
-script_dir=./
+script_dir=/home/sunjun/cadres/CADRES/
 #RNA_bam file name
 threads=8
-knownSNV=/public3/home/scg8972/genome/dbsnp150.vcf
-boost_workingdir=/public3/home/scg8972/0_czhang/DVR_Analysis/2.5_boosted_scan/293T_V6/
-DNA_BQSR_dir=/public3/home/scg8972/0_czhang/DVR_Analysis/4_BQSR_DNA/293T_COM/
-RNA_bam_dir=/public3/home/scg8972/0_czhang/DVR_Analysis/2_BAM_RNA-seq/293T/
+knownSNV=/home/sunjun/hdd/sunjun_file/genome/dbsnp150.vcf
+boost_workingdir=/home/sunjun/cadres/3_boost_scan/
+DNA_BQSR_dir=/home/sunjun/cadres/1_dna_bam/
+RNA_bam_dir=/home/sunjun/cadres/2_rna_bam/
 
-SampleNamelist=(C6-DMSO-1 \
-    C6-DMSO-2 \
-    C6-DMSO-3 \
-    C6-DOX-1 \
-    C6-DOX-2 \
-    C6-DOX-3)
+SampleNamelist=(C6-DOX-1A_chr22 \
+    C6-DOX-2A_chr22 \
+    C6-DOX-3A_chr22 \
+    C6+DOX-1A_chr22 \
+    C6+DOX-2A_chr22 \
+    C6+DOX-3A_chr22)
 
 #ensure_path_ends_with_slash
 ensure_path_ends_with_slash() {  
@@ -33,20 +33,20 @@ ensure_path_ends_with_slash() {
 DNA_BQSR_dir=$(ensure_path_ends_with_slash "$DNA_BQSR_dir")  
 boost_workingdir=$(ensure_path_ends_with_slash "$boost_workingdir")  
 RNA_bam_dir=$(ensure_path_ends_with_slash "$RNA_bam_dir")
-DNA_bam=/public3/home/scg8972/0_czhang/DVR_Analysis/1_BAM_WGS/293T/C6-WGSA_plasmid_sorted.bam
+DNA_bam=/home/sunjun/cadres/1_dna_bam/test_sorted_chr22.bam
 DNA_name=C6_WGS
-RNA_bam_sample1=(${boost_workingdir}C6-DMSO-1_split.bam \
-    ${boost_workingdir}C6-DMSO-2_split.bam \
-    ${boost_workingdir}C6-DMSO-3_split.bam)
-RNA_bam_sample2=(${boost_workingdir}C6-DOX-1_split.bam \
-    ${boost_workingdir}C6-DOX-2_split.bam \
-    ${boost_workingdir}C6-DOX-3_split.bam)
+RNA_bam_sample1=(${RNA_bam_dir}C6-DOX-1A_chr22.bam \
+    ${RNA_bam_dir}C6-DOX-2A_chr22.bam \
+    ${RNA_bam_dir}C6-DOX-3A_chr22.bam)
+RNA_bam_sample2=(${RNA_bam_dir}C6+DOX-1A_chr22.bam \
+    ${RNA_bam_dir}C6+DOX-2A_chr22.bam \
+    ${RNA_bam_dir}C6+DOX-3A_chr22.bam)
 
 cd $boost_workingdir
 for SamplePrefix in "${SampleNamelist[@]}";
 do  
     python ${script_dir}bam_calibration_RNA_boost.py \
-        --bam ${RNA_bam_dir}${SamplePrefix}.final.bam \
+        --bam ${RNA_bam_dir}${SamplePrefix}.bam \
         --output ${SamplePrefix} \
         --genome $genome
     RNA_report_list+=("-I ${boost_workingdir}_recalibration_report.grp ")
@@ -69,7 +69,7 @@ done
 cd $boost_workingdir
 gatk Mutect2 -R $genome ${RNA_bam_list[@]} \
     -I ${DNA_BQSR_dir}${DNA_name}_recalibration.bam \
-    -normal $DNA_name
+    -normal $DNA_name \
     -O $prefix.mutect.vcf
 
 gatk FilterMutectCalls \
