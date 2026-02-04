@@ -19,13 +19,10 @@ keep=args.KeepTemp
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(message)s')
-
-sample_name = os.path.basename(label)
-
 # mark and index bam
-com1='picard ReorderSam -INPUT '+bam+' -OUTPUT '+label+'_reordered.bam -S true -R '+genome+' -SEQUENCE_DICTIONARY '+genome
-com2='picard AddOrReplaceReadGroups -INPUT '+label+'_reordered.bam -OUTPUT '+label+'_addrg.bam -RGID '+sample_name+' -RGLB '+sample_name+' -RGPL COMPLETE -RGPU lane1 -RGSM '+sample_name
-com3='picard MarkDuplicates -INPUT '+label+'_addrg.bam -OUTPUT '+label+'_dedup.bam -CREATE_INDEX true -VALIDATION_STRINGENCY SILENT -READ_NAME_REGEX null -METRICS_FILE '+label+'_metrics.txt'
+com1='picard ReorderSam INPUT='+bam+' OUTPUT='+label+'_reordered.bam SEQUENCE_DICTIONARY='+genome.replace('.fa', '.dict').replace('.fasta', '.dict')+' S=true R='+genome
+com2='picard AddOrReplaceReadGroups INPUT='+label+'_reordered.bam OUTPUT='+label+'_addrg.bam RGID='+label+' RGLB='+label+' RGPL=COMPLETE RGPU=lane1 RGSM='+label
+com3='picard MarkDuplicates INPUT='+label+'_addrg.bam OUTPUT='+label+'_dedup.bam CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT READ_NAME_REGEX=null METRICS_FILE='+label+'_metrics.txt'
 
 # SplitNCigarReads
 com4='gatk SplitNCigarReads -R '+genome+' -I '+label+'_dedup.bam -O '+label+'_split.bam'

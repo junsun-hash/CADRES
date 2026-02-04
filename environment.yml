@@ -1,32 +1,186 @@
-# CADRES Pipeline Conda Environment
-# To create this environment, use the command:
-# conda env create -f environment.yml
-
 name: CADRES
 channels:
+  - defaults
   - bioconda
   - conda-forge
-  - defaults
-
 dependencies:
-  # --- Core ---
-  - python=3.9
-
-  # --- Python Libraries ---
-  - pysam>=0.16         # For BAM/SAM file manipulation, updated for Python 3
-  - pyfaidx             # For fast FASTA file indexing and access
-  - numpy
-  - scipy
-  - pandas
-
-  # --- Bioinformatics Tools ---
-  # These versions are compatible with the original scripts and modern practices.
+  - _libgcc_mutex=0.1
+  - _openmp_mutex=4.5
+  - _r-mutex=1.0.1
+  - alsa-lib=1.2.11
+  - bcftools=1.21
+  - bedtools=2.31.1
+  - binutils_impl_linux-64=2.45
+  - biopython=1.85
+  - bwa=0.7.18
+  - bwidget=1.10.1
+  - bzip2=1.0.8
+  - c-ares=1.34.6
+  - ca-certificates=2026.1.4
+  - cairo=1.18.4
+  - curl=8.16.0
+  - expat=2.7.3
+  - font-ttf-dejavu-sans-mono=2.37
+  - font-ttf-inconsolata=3.000
+  - font-ttf-source-code-pro=2.038
+  - font-ttf-ubuntu=0.83
+  - fontconfig=2.15.0
+  - fonts-conda-ecosystem=1
+  - fonts-conda-forge=1
+  - freetype=2.14.1
+  - fribidi=1.0.16
   - gatk4=4.3.0.0
-  - samtools=1.16.1
-  - bcftools=1.16
-  - bedtools=2.31.0
+  - gcc_impl_linux-64=15.2.0
+  - gettext=0.21.0
+  - gfortran_impl_linux-64=15.2.0
+  - giflib=5.2.2
+  - graphite2=1.3.14
+  - gsl=2.7
+  - gxx_impl_linux-64=15.2.0
+  - harfbuzz=12.2.0
+  - htslib=1.21
+  - icu=75.1
+  - importlib-metadata=8.7.0
+  - kernel-headers_linux-64=5.14.0
+  - keyutils=1.6.3
+  - krb5=1.21.3
+  - lcms2=2.16
+  - ld_impl_linux-64=2.45
+  - lerc=4.0.0
+  - libblas=3.11.0
+  - libcblas=3.11.0
+  - libcups=2.3.3
+  - libcurl=8.16.0
+  - libdeflate=1.24
+  - libedit=3.1.20250104
+  - libev=4.33
+  - libexpat=2.7.3
+  - libffi=3.5.2
+  - libfreetype=2.14.1
+  - libfreetype6=2.14.1
+  - libgcc=15.2.0
+  - libgcc-devel_linux-64=15.2.0
+  - libgcc-ng=15.2.0
+  - libgfortran=15.2.0
+  - libgfortran-ng=15.2.0
+  - libgfortran5=15.2.0
+  - libglib=2.86.2
+  - libgomp=15.2.0
+  - libiconv=1.18
+  - libidn2=2.3.8
+  - libjpeg-turbo=3.1.2
+  - liblapack=3.11.0
+  - liblzma=5.8.1
+  - liblzma-devel=5.8.1
+  - libnghttp2=1.58.0
+  - libnsl=2.0.1
+  - libopenblas=0.3.30
+  - libpng=1.6.54
+  - libsanitizer=15.2.0
+  - libsqlite=3.46.0
+  - libssh2=1.11.1
+  - libstdcxx=15.2.0
+  - libstdcxx-devel_linux-64=15.2.0
+  - libstdcxx-ng=15.2.0
+  - libtiff=4.7.1
+  - libunistring=1.3
+  - libuuid=2.41.3
+  - libwebp-base=1.6.0
+  - libxcb=1.17.0
+  - libxcrypt=4.4.36
+  - libxml2=2.13.9
+  - libzlib=1.3.1
+  - make=4.4.1
+  - ncurses=6.5
+  - numpy=2.0.2
+  - openjdk=11.0.23
+  - openssl=3.6.1
+  - packaging=25.0
+  - pandas=2.3.1
+  - pango=1.56.4
+  - parallel=20251122
   - pblat=2.5.1
-  - picard             # Usually included with GATK4 but can be specified
-
-  # --- Other utilities ---
-  - pip
+  - pcre2=10.46
+  - perl=5.32.1
+  - picard=2.20.8
+  - pip=25.2
+  - pixman=0.46.4
+  - pthread-stubs=0.4
+  - pyfaidx=0.9.0.3
+  - pysam=0.22.1
+  - python=3.9.19
+  - python-dateutil=2.9.0.post0
+  - python-tzdata=2025.2
+  - python_abi=3.9
+  - pytz=2025.2
+  - pyvcf3=1.0.4
+  - r-base=4.5.2
+  - r-bitops=1.0_9
+  - r-catools=1.18.3
+  - r-cli=3.6.5
+  - r-colorspace=2.1_2
+  - r-cpp11=0.5.3
+  - r-farver=2.1.2
+  - r-ggplot2=4.0.1
+  - r-glue=1.8.0
+  - r-gplots=3.3.0
+  - r-gsalib=2.2.1
+  - r-gtable=0.3.6
+  - r-gtools=3.9.5
+  - r-isoband=0.3.0
+  - r-kernsmooth=2.23_26
+  - r-labeling=0.4.3
+  - r-lifecycle=1.0.5
+  - r-magrittr=2.0.4
+  - r-munsell=0.5.1
+  - r-plyr=1.8.9
+  - r-r6=2.6.1
+  - r-rcolorbrewer=1.1_3
+  - r-rcpp=1.1.1
+  - r-reshape2=1.4.5
+  - r-rlang=1.1.7
+  - r-s7=0.2.1
+  - r-scales=1.4.0
+  - r-stringi=1.8.7
+  - r-stringr=1.6.0
+  - r-vctrs=0.7.1
+  - r-viridislite=0.4.2
+  - r-withr=3.0.2
+  - readline=8.3
+  - samtools=1.21
+  - scipy=1.13.1
+  - sed=4.9
+  - setuptools=80.9.0
+  - six=1.17.0
+  - star=2.7.11b
+  - sysroot_linux-64=2.34
+  - tk=8.6.13
+  - tktable=2.10
+  - tzdata=2025c
+  - wheel=0.45.1
+  - xorg-fixesproto=5.0
+  - xorg-inputproto=2.3.2
+  - xorg-kbproto=1.0.7
+  - xorg-libice=1.1.2
+  - xorg-libsm=1.2.6
+  - xorg-libx11=1.8.12
+  - xorg-libxau=1.0.12
+  - xorg-libxdmcp=1.1.5
+  - xorg-libxext=1.3.7
+  - xorg-libxfixes=5.0.3
+  - xorg-libxi=1.7.10
+  - xorg-libxrandr=1.5.2
+  - xorg-libxrender=0.9.12
+  - xorg-libxt=1.3.0
+  - xorg-libxtst=1.2.5
+  - xorg-randrproto=1.5.0
+  - xorg-recordproto=1.14.2
+  - xorg-renderproto=0.11.1
+  - xorg-xextproto=7.3.0
+  - xorg-xproto=7.0.31
+  - xz=5.8.1
+  - xz-gpl-tools=5.8.1
+  - xz-tools=5.8.1
+  - zipp=3.23.0
+  - zlib=1.3.1
+  - zstd=1.5.7

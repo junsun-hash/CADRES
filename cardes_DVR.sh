@@ -7,38 +7,36 @@
 set -x
 conda activate CADRES
 #GATK 4 picard 2.20 samtools 1.16.1 bedtools v2.31.0
-genome=/public3/home/scg8972/genome/plsmid/Homo_sapiens.GRCh38.dna.primary_assembly_plsmid.fa
-prefix=293T_V6
+genome=/home/sunjun/hdd/sunjun_file/genome/plsmid/Homo_sapiens.GRCh38.dna.primary_assembly_plsmid.fa
+prefix=293_chr22
 
-#所需脚本所在位置的目录，以"/"结尾
-#注意！所有dir都要以"/"结尾！！
-script_dir=./
+script_dir=/home/sunjun/cadres/CADRES/
 #RNA_bam file name
-threads=8
-knownSNV=/public3/home/scg8972/genome/dbsnp150_reorder.vcf
-genomead=/public3/home/scg8972/genome/germline_resource/af-only-gnomad_chr_3.hg38.vcf
-geneanno=/public3/home/scg8972/genome/DVR_ref/refGene.txt
-knownediting=/public3/home/scg8972/genome/DVR_ref/REDIportal_AtoI.txt
+threads=16
+knownSNV=/home/sunjun/hdd/sunjun_file/genome/dbsnp150.vcf
+genomead=/home/sunjun/hdd/sunjun_file/genome/germline_resource/af-only-gnomad_chr_3.hg38.vcf
+geneanno=/home/sunjun/hdd/sunjun_file/genome/DVR_ref/refGene.txt
+knownediting=/home/sunjun/hdd/sunjun_file/genome/DVR_ref/REDIportal_AtoI.txt
 #========RNA_BQSR=========
 #不同步骤的工作目录，boost_workingdir必须和上个脚本目录相同
-boost_workingdir=/public3/home/scg8972/0_czhang/DVR_Analysis/2.5_boosted_scan/293T_V6/
-RNA_BQSR_dir=/public3/home/scg8972/0_czhang/DVR_Analysis/3_BQSR_RNA/293T_V6/
-DNA_BQSR_dir=/public3/home/scg8972/0_czhang/DVR_Analysis/4_BQSR_DNA/293T_COM/
+boost_workingdir=/home/sunjun/cadres/3_boost_scan_chr22/
+RNA_BQSR_dir=/home/sunjun/cadres/5_rna_bqsr_chr22/
+DNA_BQSR_dir=/home/sunjun/cadres/4_dna_bqsr_chr22/
 cd $RNA_BQSR_dir
 #gatk IndexFeatureFile -I ${boost_workingdir}${prefix}_2.known.vcf
-SampleNamelist=(C6-DMSO-1 \
-    C6-DMSO-2 \
-    C6-DMSO-3 \
-    C6-DOX-1 \
-    C6-DOX-2 \
-    C6-DOX-3)
+SampleNamelist=(C6-DOX-1A_chr22 \
+    C6-DOX-2A_chr22 \
+    C6-DOX-3A_chr22 \
+    C6+DOX-1A_chr22 \
+    C6+DOX-2A_chr22 \
+    C6+DOX-3A_chr22)
 
 for SamplePrefix in "${SampleNamelist[@]}";
 do  
     gatk BaseRecalibrator -I ${boost_workingdir}${SamplePrefix}_split.bam \
         -R $genome \
         -O ${SamplePrefix}_recalibration_report.grp \
-        --known-sites ${boost_workingdir}${prefix}_2.known.vcf
+        --known-sites ${boost_workingdir}${prefix}_boost.known.vcf
     RNA_report_list+=("-I ${SamplePrefix}_recalibration_report.grp ")
 done
 
@@ -55,7 +53,7 @@ done
 gatk AnalyzeCovariates \
     -bqsr ${prefix}_recalibration_report.grp \
     -plots AnalyzeCovariates.pdf
-ehco "========CalculateContamination========="
+echo "========CalculateContamination========="
 for SamplePrefix in "${SampleNamelist[@]}";
 do  
     gatk --java-options '-Xmx200G' GetPileupSummaries \
@@ -71,15 +69,16 @@ done
 contamination_list_str=${contamination_list[@]}
 echo $contamination_list_str
 
+
 echo "========RV&DVR_SETTING============"
-RV_workingdir=/public3/home/scg8972/0_czhang/DVR_Analysis/5_mutect2/293T_V6/
+RV_workingdir=/home/sunjun/cadres/6_mutect2_chr22/
 DNA_bam=${DNA_BQSR_dir}C6_WGS_recalibration.bam
-RNA_bam_sample1=(${RNA_BQSR_dir}C6-DMSO-1_recalibration.bam \
-    ${RNA_BQSR_dir}C6-DMSO-2_recalibration.bam \
-    ${RNA_BQSR_dir}C6-DMSO-3_recalibration.bam)
-RNA_bam_sample2=(${RNA_BQSR_dir}C6-DOX-1_recalibration.bam \
-    ${RNA_BQSR_dir}C6-DOX-2_recalibration.bam \
-    ${RNA_BQSR_dir}C6-DOX-3_recalibration.bam)
+RNA_bam_sample1=(${RNA_BQSR_dir}C6-DOX-1A_chr22_recalibration.bam \
+    ${RNA_BQSR_dir}C6-DOX-2A_chr22_recalibration.bam \
+    ${RNA_BQSR_dir}C6-DOX-3A_chr22_recalibration.bam)
+RNA_bam_sample2=(${RNA_BQSR_dir}C6+DOX-1A_chr22_recalibration.bam \
+    ${RNA_BQSR_dir}C6+DOX-2A_chr22_recalibration.bam \
+    ${RNA_BQSR_dir}C6+DOX-3A_chr22_recalibration.bam)
 normal=C6_WGS
 
 #=======RV======

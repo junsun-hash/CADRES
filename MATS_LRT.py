@@ -170,10 +170,10 @@ def MLE_iteration_constrain(i1,i2,s1,s2,effective_inclusion_length,effective_ski
 		new_psi1=[];new_psi2=[];
 		if (sum(psi1)/len(psi1))>(sum(psi2)/len(psi2)):#minize psi2 if this is the case
 			xopt = fmin_l_bfgs_b(myfunc_1,[sum(psi2)/len(psi2)],myfunc_der_1,args=[[i1[0],i2[0]],[s1[0],s2[0]],[beta_0,beta_1],var1,effective_inclusion_length,effective_skipping_length],bounds=[[0.001,0.999-cutoff]],iprint=-1)
-			theta2 = max(min(float(xopt[0]),1-cutoff),0);theta1=theta2+cutoff;
+			theta2 = maximum(minimum(float(xopt[0]),1-cutoff),0);theta1=theta2+cutoff;
 		else:#minize psi1 if this is the case
 			xopt = fmin_l_bfgs_b(myfunc_2,[sum(psi1)/len(psi1)],myfunc_der_2,args=[[i1[0],i2[0]],[s1[0],s2[0]],[beta_0,beta_1],var1,effective_inclusion_length,effective_skipping_length],bounds=[[0.001,0.999-cutoff]],iprint=-1)
-			theta1 =	 max(min(float(xopt[0]),1-cutoff),0);theta2=theta1+cutoff;
+			theta1 =	 maximum(minimum(float(xopt[0]),1-cutoff),0);theta2=theta1+cutoff;
 		#Debug;print('constrain_1xopt');print('theta');print(theta1);print(theta2);print(xopt);
 		current_sum+=float(xopt[1]);
 		new_psi1.append(theta1);new_psi2.append(theta2);

@@ -16,6 +16,10 @@ use Getopt::Long;
 ################################################################################
 # add -@ threads in samtools view
 # add print "SAMTOOLS VIEW.." in line 83
+# $Revision: $
+# Authors: Robert Piskol ( piskol@stanford.edu ), Gokul Ramaswami ( gokulr@stanford.edu )
+# Last modification $Author: piskol $
+# perl script that runs blat for all aligned reads for each editing sites
 our $SAMTOOLSEXE = 'samtools';
 my $PBLAT_PATH = 'pblat';
 my ($INPUTFILE,$OUTPUTFILE,$BAMFILE,$REFERENCEGENOME,$HELP,$ILLUMINAQUALS);

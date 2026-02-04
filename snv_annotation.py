@@ -91,12 +91,12 @@ if geneanno!='NA':
             gene[tx]=[chrom]+change[:]+[cdsstart]+[cdsend]+[strand]+[genename]
             genestart=int(a[4])
             geneend=int(a[5])
-            bin1=genestart/1000000
-            bin2=(geneend-1)/1000000
-            if (not txbins.has_key(chrom)):
+            bin1=genestart//1000000
+            bin2=(geneend-1)//1000000
+            if (chrom not in txbins):
                 txbins[chrom]={}
             for onebin in range(bin1, bin2+1):
-                if (not txbins[chrom].has_key(onebin)):
+                if (onebin not in txbins[chrom]):
                     txbins[chrom][onebin]=[tx]
                 else:
                     txbins[chrom][onebin].append(tx)
@@ -121,7 +121,7 @@ if (snp!='NA'):
                 a=line.split('\t')
                 chrom=a[0]
                 site=a[1]
-                if (allsites.has_key(chrom+':'+site)):
+                if ((chrom+':'+site) in allsites):
                     rs=a[2]
                     ref=a[3]
                     alt=a[4]
@@ -136,8 +136,8 @@ if (knownediting!='NA'):
                 a=line.split('\t')
                 if (a[0]=='chromosome'):
                     continue
-                if (allsites.has_key(a[0]+':'+a[1])):
-                    radar2[a[0]+':'+a[1]]=1
+                #if (allsites.has_key(a[0]+':'+a[1])):
+                    #radar2[a[0]+':'+a[1]]=1
 
 #print ('Known RNA editing loaded')
 
@@ -154,12 +154,12 @@ if repeatmask!='NA':
                 end=int(a[6])
                 repname=a[9]
                 repfam=a[10]
-                bin1=start/100000
-                bin2=(end-1)/100000
-                if (not repeat.has_key(chrom)):
+                bin1=start//100000
+                bin2=(end-1)//100000
+                if (chrom not in repeat):
                     repeat[chrom]={}
                 for onebin in range(bin1, bin2+1):
-                    if(not repeat[chrom].has_key(onebin)):
+                    if(onebin not in repeat[chrom]):
                         repeat[chrom][onebin]=[[start, end, repname, repfam]]  
                     else:
                         repeat[chrom][onebin].append([start, end, repname, repfam])
@@ -197,9 +197,9 @@ for line in open(args.input):
     genename=[]
     #ensg=[]
     strands=[]
-    sitebin=site/1000000
+    sitebin=site//1000000
     #print [chr, sitebin,  len(txbins[chr]), len(txbins[chr][sitebin])]
-    if (txbins.has_key(chr) and txbins[chr].has_key(sitebin)):
+    if (chr in txbins and sitebin in txbins[chr]):
         for key in txbins[chr][sitebin]:
             intron=0
             cdsstart=[]
@@ -306,16 +306,16 @@ for line in open(args.input):
     siteid=chr+':'+str(site+1)
     
     dbsnp_hit=''
-    if (dbsnp.has_key(siteid) and dbsnp[siteid][1]==ref and dbsnp[siteid][2]==alt):
+    if (siteid in dbsnp and dbsnp[siteid][1]==ref and dbsnp[siteid][2]==alt):
         dbsnp_hit=dbsnp[siteid][0]
     
     radar2_hit='FALSE'
-    if (radar2.has_key(siteid) and ref_sense=='A' and alt_sense=='G'):
+    if (siteid in radar2 and ref_sense=='A' and alt_sense=='G'):
         radar2_hit='TRUE'
     
     rephit=['']*2
-    sitebin2=site/100000
-    if (repeat.has_key(chr) and repeat[chr].has_key(sitebin2)):
+    sitebin2=site//100000
+    if (chr in repeat and sitebin2 in repeat[chr]):
         for repstart, repend, repname, repclass in repeat[chr][sitebin2]:
             if (repstart<=site<repend ):
                 rephit=[repname, repfam]
@@ -364,7 +364,7 @@ for line in open(args.input):
             diff='NA'
             
     onetype=ref_sense+'-'+alt_sense
-    if (all_type.has_key(onetype)):
+    if (onetype in all_type):
             all_type[onetype]+=1
             fdr=float(a[8])
             #fdr=float(a[8])

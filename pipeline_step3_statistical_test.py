@@ -1,0 +1,147 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import argparse
+import os
+import sys
+import subprocess
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def run_command(cmd):
+    logging.info(f"Running: {cmd}")
+    try:
+        subprocess.check_call(cmd, shell=True, executable='/bin/bash')
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Command failed: {cmd}")
+        raise e
+
+def main():
+    try:
+        _main()
+    except Exception as e:
+        logging.error(f"Pipeline failed with error: {e}")
+        sys.exit(1)
+
+def _main():
+    parser = argparse.ArgumentParser(description="Step 3: Statistical Testing (Mpileup, MATS, FDR, Annotation)")
+    parser.add_argument('--group1_rna_bams', nargs='+', required=True, help='List of Recalibrated RNA BAM files for Group 1')
+    parser.add_argument('--group2_rna_bams', nargs='+', required=True, help='List of Recalibrated RNA BAM files for Group 2')
+    parser.add_argument('--final_vcf', required=True, help='Final VCF file from Step 2')
+    parser.add_argument('--genome', required=True, help='Reference genome FASTA')
+    parser.add_argument('--output_dir', required=True, help='Output directory')
+    parser.add_argument('--prefix', default='sample', help='Output prefix')
+    parser.add_argument('--scripts_dir', help='Directory containing MATS_LRT.py, etc. Defaults to script location.')
+    parser.add_argument('--labels', nargs=2, default=['Label1', 'Label2'], help='Labels for the two groups')
+    parser.add_argument('--known_snv', help='Known SNV VCF for annotation')
+    parser.add_argument('--known_editing', help='Known Editing sites for annotation')
+    parser.add_argument('--gene_anno', help='Gene Annotation file')
+    parser.add_argument('--threads', type=int, default=4, help='Number of threads')
+    
+    args = parser.parse_args()
+
+    if args.scripts_dir is None:
+        args.scripts_dir = os.path.dirname(os.path.abspath(__file__))
+
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+    
+    prefix_path = os.path.join(args.output_dir, args.prefix)
+
+    # Combine all BAMs for processing
+    all_rna_bams = args.group1_rna_bams + args.group2_rna_bams
+    
+    # 1. Split BAMs by Strand
+    logging.info("Splitting BAMs by strand...")
+    rna_bam_sep_list = []
+    
+    for bam in all_rna_bams:
+        base = os.path.splitext(bam)[0]
+        first_end = f"{base}_seperate_firstEnd.bam"
+        second_end = f"{base}_seperate_secondEnd.bam"
+        
+        # -f 64 (first in pair), -f 128 (second in pair)
+        cmd1 = f"samtools view -@ {args.threads} -f 64 -b {bam} > {first_end}"
+        cmd2 = f"samtools view -@ {args.threads} -f 128 -b {bam} > {second_end}"
+        
+        run_command(cmd1)
+        run_command(cmd2)
+        
+        rna_bam_sep_list.append(first_end)
+        rna_bam_sep_list.append(second_end)
+    
+    # 2. Mpileup
+    logging.info("Running Samtools Mpileup...")
+    pileup_file = f"{prefix_path}.pileup"
+    bam_inputs = " ".join(rna_bam_sep_list)
+    
+    # -l: positions list (VCF)
+    cmd = f"samtools mpileup -B -d 100000 -f {args.genome} -l {args.final_vcf} -q 30 -Q 17 -a -o {pileup_file} {bam_inputs}"
+    run_command(cmd)
+    
+    # Clean up split bams
+    run_command(f"rm {' '.join(rna_bam_sep_list)}")
+    
+    # 3. VCF to MATS Input
+    logging.info("Converting to MATS input...")
+    inc_file = f"{prefix_path}.inc.txt"
+    
+    # Prepare comma-separated lists for the script
+    g1_str = ",".join(args.group1_rna_bams)
+    g2_str = ",".join(args.group2_rna_bams)
+    
+    script_vcf_to_mats = os.path.join(args.scripts_dir, "vcf_to_mats_input_For_Mutect2.py")
+    # Arguments: vcf, output_inc, group1_bams, group2_bams, read_len(20?), anchor(5?), strand(T), pileup, strand_mode(T)
+    # Based on: python vcf_to_mats_input_For_Mutect2.py $prefix.final.vcf ${prefix}.inc.txt $RNA_bam_sample1 $RNA_bam_sample2 20 5 T ${prefix}.pileup T
+    cmd = f"python {script_vcf_to_mats} {args.final_vcf} {inc_file} {g1_str} {g2_str} 20 5 T {pileup_file} T"
+    run_command(cmd)
+    
+    # 4. MATS LRT
+    logging.info("Running MATS LRT...")
+    # MATS_LRT.py takes an output prefix and appends suffixes like _rMATS_Result_P.txt
+    # We define a base path for these outputs
+    mats_output_base = f"{prefix_path}_rMATS-DVR_results"
+    
+    script_mats = os.path.join(args.scripts_dir, "MATS_LRT.py")
+    # Arguments: input_inc, output_dir(actually prefix), threads, threshold
+    # Note: DVR-293TV6.sh explicitly uses 4 threads for MATS_LRT.py, so we use 4 here to ensure consistency
+    cmd = f"python {script_mats} {inc_file} {mats_output_base} 4 0.0001"
+    run_command(cmd)
+    
+    # 5. FDR Correction
+    logging.info("Running FDR Correction...")
+    script_fdr = os.path.join(args.scripts_dir, "FDR.py")
+    
+    # Construct filenames as generated by MATS_LRT.py
+    mats_p_file = f"{mats_output_base}_rMATS_Result_P.txt"
+    mats_fdr_file = f"{mats_output_base}_rMATS_Result_FDR.txt"
+    
+    cmd = f"python {script_fdr} {mats_p_file} {mats_fdr_file}"
+    run_command(cmd)
+    
+    # 6. Annotation
+    logging.info("Annotating Results...")
+    script_anno = os.path.join(args.scripts_dir, "snv_annotation.py")
+    output_anno = f"{prefix_path}_rMATS-DVR_Result.txt"
+    output_summary = f"{prefix_path}_rMATS-DVR_Result_summary.txt"
+    
+    cmd = f"python {script_anno} --input {mats_fdr_file} --output {output_anno} --summary {output_summary} --label1 {args.labels[0]} --label2 {args.labels[1]}"
+    
+    if args.known_snv:
+        cmd += f" --snp {args.known_snv}"
+    if args.known_editing:
+        cmd += f" --editing {args.known_editing}"
+    if args.gene_anno:
+        cmd += f" --gene {args.gene_anno}"
+        
+    # Original script also had --repeat NA, adding it if needed
+    cmd += " --repeat NA"
+    
+    run_command(cmd)
+    
+    logging.info(f"Step 3 Complete. Final Results in: {output_anno}")
+
+if __name__ == "__main__":
+    main()

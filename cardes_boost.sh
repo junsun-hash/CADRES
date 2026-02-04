@@ -3,15 +3,15 @@ set -x
 conda activate CADRES
 #GATK 4 picard 2.20 samtools 1.16.1 bedtools v2.31.0
 genome=/home/sunjun/hdd/sunjun_file/genome/plsmid/Homo_sapiens.GRCh38.dna.primary_assembly_plsmid.fa
-prefix=test_293
+prefix=293_chr22
 
 script_dir=/home/sunjun/cadres/CADRES/
 #RNA_bam file name
-threads=8
+threads=16
 knownSNV=/home/sunjun/hdd/sunjun_file/genome/dbsnp150.vcf
-boost_workingdir=/home/sunjun/cadres/3_boost_scan/
-DNA_BQSR_dir=/home/sunjun/cadres/1_dna_bam/
-RNA_bam_dir=/home/sunjun/cadres/2_rna_bam/
+boost_workingdir=/home/sunjun/cadres/3_boost_scan_chr22/
+DNA_BQSR_dir=/home/sunjun/cadres/4_dna_bqsr_chr22/
+RNA_bam_dir=/home/sunjun/cadres/2_rna_bam_22/
 
 SampleNamelist=(C6-DOX-1A_chr22 \
     C6-DOX-2A_chr22 \
