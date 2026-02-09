@@ -64,16 +64,16 @@ def revised_convert_vcf(input_vcf, output_file):
         raise e
 
 def calculate_contamination_task(args):
-    bam, gnomad, output_dir, genome = args
+    bam, gnomad, output_dir, genome, Contamination_mem = args
     base_name = os.path.basename(bam).replace('.bam', '')
     pileup_table = os.path.join(output_dir, f"{base_name}_pileups.table")
     contam_table = os.path.join(output_dir, f"{base_name}_contamination.table")
     
-    # Limit memory to 128G as requested
-    cmd = f"gatk --java-options '-Xmx128G' GetPileupSummaries -R {genome} -I {bam} -V {gnomad} -L {gnomad} -O {pileup_table}"
+    # Use configured memory limit
+    cmd = f"gatk --java-options '-Xmx{Contamination_mem}' GetPileupSummaries -R {genome} -I {bam} -V {gnomad} -L {gnomad} -O {pileup_table}"
     run_command(cmd)
     
-    cmd = f"gatk --java-options '-Xmx128G' CalculateContamination -I {pileup_table} -O {contam_table}"
+    cmd = f"gatk --java-options '-Xmx{Contamination_mem}' CalculateContamination -I {pileup_table} -O {contam_table}"
     run_command(cmd)
     
     return contam_table
@@ -94,7 +94,9 @@ def _main():
     parser.add_argument('--output_dir', required=True, help='Output directory')
     parser.add_argument('--prefix', default='sample', help='Output prefix')
     parser.add_argument('--scripts_dir', help='Directory containing filter_homopolymer_nucleotides.py, etc. Defaults to script location.')
-    parser.add_argument('--threads', type=int, default=4, help='Number of threads/processes')
+    parser.add_argument('--threads', type=int, default=4, help='Number of threads/processes (default: 4)')
+    parser.add_argument('--contamination_threads', type=int, default=2, help='Number of parallel GATK contamination jobs (default: 2)')
+    parser.add_argument('--contamination_mem', default='32G', help='Java memory limit for GATK (e.g. 32G, 100G). Default: 32G')
     
     args = parser.parse_args()
 
@@ -107,13 +109,13 @@ def _main():
     prefix_path = os.path.join(args.output_dir, args.prefix)
 
     # 1. Calculate Contamination
-    logging.info(f"Calculating Contamination (Parallel, max {args.threads} processes)...")
+    logging.info(f"Calculating Contamination (Parallel, max {args.contamination_threads} processes)...")
     
     contam_pool_args = []
     for bam in args.rna_bams:
-        contam_pool_args.append((bam, args.gnomad, args.output_dir, args.genome))
+        contam_pool_args.append((bam, args.gnomad, args.output_dir, args.genome, args.contamination_mem))
         
-    with Pool(processes=args.threads) as p:
+    with Pool(processes=args.contamination_threads) as p:
         contamination_tables = p.map(calculate_contamination_task, contam_pool_args)
 
     # 2. Mutect2 (Final Run)
